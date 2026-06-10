@@ -8,8 +8,10 @@ import { useVault } from "@/lib/useVault";
 import { useAction } from "@/lib/useAction";
 import { erc20Abi, vaultAbi } from "@/lib/abis";
 import { EXPLORER } from "@/lib/contracts";
-import { fmtUnits, fmtDate, phaseLabel, shortAddr } from "@/lib/format";
+import { fmtUnits, fmtDate, fmtBps, fmtRepayment, phaseLabel, shortAddr } from "@/lib/format";
 import { Stat, PhaseBadge } from "@/components/Stat";
+
+const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 export default function VaultPage() {
   const params = useParams();
@@ -50,26 +52,28 @@ export default function VaultPage() {
         <Stat label="Your position" value={`$${fmtUnits(positionValue, vault.decimals)}`} />
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-4">
+        <Stat label="Target APR" value={fmtBps(vault.targetAprBps)} />
+        <Stat label="Loan term" value={`${vault.loanTermDays.toString()} days`} />
+        <Stat label="Repayment" value={fmtRepayment(vault.repaymentType, vault.paymentIntervalDays)} />
         <Stat label="Deposit cap" value={`$${fmtUnits(vault.maxDeposits, vault.decimals)}`} />
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Stat label="Status" value={phaseLabel(vault.phase)} />
         <Stat label="Allocator" value={<span className="font-mono text-sm">{shortAddr(vault.allocator)}</span>} />
-        <Stat label="Epoch" value={`#${vault.epochId.toString()}`} />
       </div>
 
       <div className="mt-4 card p-5">
-        <div className="text-sm font-medium">Epoch schedule</div>
-        <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
+        <div className="text-sm font-medium">Funding window</div>
+        <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
           <div>
-            <div className="text-xs text-muted">Funding start</div>
-            <div>{fmtDate(vault.epochInfo.fundingStart)}</div>
+            <div className="text-xs text-muted">Opens</div>
+            <div>{vault.fundingStart === 0n ? "Not set" : fmtDate(vault.fundingStart)}</div>
           </div>
           <div>
-            <div className="text-xs text-muted">Epoch start</div>
-            <div>{fmtDate(vault.epochInfo.epochStart)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted">Epoch end</div>
-            <div>{fmtDate(vault.epochInfo.epochEnd)}</div>
+            <div className="text-xs text-muted">Closes</div>
+            <div>{vault.fundingEnd === 0n ? "Not set" : fmtDate(vault.fundingEnd)}</div>
           </div>
         </div>
       </div>
@@ -77,7 +81,7 @@ export default function VaultPage() {
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <LpPanel vault={vault} address={address} account={account} refetch={refetch} />
         {isAllocator && <AllocatorPanel vault={vault} address={address} refetch={refetch} />}
-        {isOwner && <VaultAdminPanel address={address} refetch={refetch} />}
+        {isOwner && <VaultAdminPanel vault={vault} address={address} refetch={refetch} />}
       </div>
     </div>
   );
@@ -108,13 +112,12 @@ function LpPanel({
   const faucet = useAction(refetch);
 
   const token = vault.asset;
-  const zero = "0x0000000000000000000000000000000000000000" as Address;
 
   const { data: tokenData, refetch: refetchToken } = useReadContracts({
     allowFailure: false,
     contracts: [
-      { address: token, abi: erc20Abi, functionName: "balanceOf", args: [account ?? zero] },
-      { address: token, abi: erc20Abi, functionName: "allowance", args: [account ?? zero, address] },
+      { address: token, abi: erc20Abi, functionName: "balanceOf", args: [account ?? ZERO] },
+      { address: token, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address] },
     ],
     query: { enabled: Boolean(account), refetchInterval: 8000 },
   });
@@ -122,8 +125,8 @@ function LpPanel({
 
   const amountWei = amount ? safeParse(amount, vault.decimals) : 0n;
   const needsApproval = allowance !== undefined && amountWei > 0n && allowance < amountWei;
-  const canDeposit = vault.phase === "funding" && vault.whitelisted;
-  const canRedeem = !vault.custodied && vault.phase !== "active";
+  const canDeposit = vault.depositsOpen;
+  const canRedeem = vault.withdrawalsOpen;
 
   const refresh = () => {
     refetch();
@@ -144,14 +147,20 @@ function LpPanel({
       </div>
       <div className="mt-1 text-xs text-muted">
         Wallet: {usdcBal !== undefined ? `$${fmtUnits(usdcBal, vault.decimals)} USDC` : "—"}
-        {!vault.whitelisted && account && <span className="ml-2 text-red-700/70">· not whitelisted</span>}
       </div>
 
       {/* Deposit */}
       <div className="mt-5">
         <label className="label">Deposit (USDC)</label>
         <div className="flex gap-2">
-          <input className="input" inputMode="decimal" placeholder="0.0" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input
+            className="input"
+            inputMode="decimal"
+            placeholder="0.0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={!canDeposit}
+          />
           {needsApproval ? (
             <button
               className="btn btn-primary whitespace-nowrap"
@@ -181,7 +190,11 @@ function LpPanel({
             </button>
           )}
         </div>
-        {!canDeposit && <p className="mt-1 text-xs text-muted">Deposits open only during the funding window.</p>}
+        {!canDeposit && (
+          <p className="mt-1 text-xs text-muted">
+            Deposits are closed — they are only open while the funding window is live ({phaseLabel(vault.phase)}).
+          </p>
+        )}
         <ErrorLine error={deposit.error} />
       </div>
 
@@ -189,11 +202,15 @@ function LpPanel({
       <div className="mt-5">
         <label className="label">Redeem (shares)</label>
         <div className="flex gap-2">
-          <input className="input" inputMode="decimal" placeholder="0.0" value={shares} onChange={(e) => setShares(e.target.value)} />
-          <button
-            className="btn whitespace-nowrap"
-            onClick={() => setShares(fmtRaw(vault.shareBalance, vault.decimals))}
-          >
+          <input
+            className="input"
+            inputMode="decimal"
+            placeholder="0.0"
+            value={shares}
+            onChange={(e) => setShares(e.target.value)}
+            disabled={!canRedeem}
+          />
+          <button className="btn whitespace-nowrap" onClick={() => setShares(fmtRaw(vault.shareBalance, vault.decimals))}>
             Max
           </button>
           <button
@@ -216,7 +233,11 @@ function LpPanel({
             {redeem.pending ? "…" : "Redeem"}
           </button>
         </div>
-        {!canRedeem && <p className="mt-1 text-xs text-muted">Redemptions are paused while the epoch is active.</p>}
+        {!canRedeem && (
+          <p className="mt-1 text-xs text-muted">
+            Withdrawals are closed — open during funding and once the admin opens withdrawals.
+          </p>
+        )}
         <ErrorLine error={redeem.error} />
       </div>
     </div>
@@ -228,25 +249,38 @@ function AllocatorPanel({ vault, address, refetch }: { vault: VaultData; address
   const custody = useAction(refetch);
   const returnFunds = useAction(refetch);
 
+  const canCustody = vault.state === 2 && !vault.custodied; // Investing
+
   return (
     <div className="card p-5">
       <div className="text-sm font-medium">Allocator</div>
-      <p className="mt-1 text-xs text-muted">Custody capital during the epoch and return principal + interest at settlement.</p>
+      <p className="mt-1 text-xs text-muted">
+        Once the admin moves the vault to Investing, take custody, deploy to SMEs, then return principal + interest.
+      </p>
 
       <button
         className="btn btn-primary mt-4 w-full"
-        disabled={custody.pending || vault.custodied || vault.phase !== "active"}
+        disabled={custody.pending || !canCustody}
         onClick={() => custody.run({ address, abi: vaultAbi, functionName: "custodyFunds" })}
       >
         {custody.pending ? "…" : vault.custodied ? "Funds custodied" : "Custody funds"}
       </button>
+      {!canCustody && !vault.custodied && (
+        <p className="mt-1 text-xs text-muted">Available only when the vault is in the Investing state.</p>
+      )}
       <ErrorLine error={custody.error} />
 
       <div className="mt-5">
         <label className="label">Return funds (USDC)</label>
         <p className="mb-1 text-xs text-muted">Approve the vault for this amount on the USDC token first.</p>
         <div className="flex gap-2">
-          <input className="input" inputMode="decimal" placeholder="0.0" value={ret} onChange={(e) => setRet(e.target.value)} />
+          <input
+            className="input"
+            inputMode="decimal"
+            placeholder="0.0"
+            value={ret}
+            onChange={(e) => setRet(e.target.value)}
+          />
           <button
             className="btn btn-primary whitespace-nowrap"
             disabled={returnFunds.pending || !vault.custodied || !ret}
@@ -265,62 +299,87 @@ function AllocatorPanel({ vault, address, refetch }: { vault: VaultData; address
   );
 }
 
-function VaultAdminPanel({ address, refetch }: { address: Address; refetch: () => void }) {
-  const [wl, setWl] = useState("");
+function VaultAdminPanel({ vault, address, refetch }: { vault: VaultData; address: Address; refetch: () => void }) {
   const [fundingStart, setFundingStart] = useState("");
-  const [epochStart, setEpochStart] = useState("");
-  const [epochEnd, setEpochEnd] = useState("");
-  const whitelist = useAction(refetch);
-  const startEpoch = useAction(refetch);
+  const [fundingEnd, setFundingEnd] = useState("");
+  const startFunding = useAction(refetch);
+  const startInvesting = useAction(refetch);
+  const openWithdrawals = useAction(refetch);
+  const closeVault = useAction(refetch);
 
   const toTs = (v: string) => BigInt(Math.floor(new Date(v).getTime() / 1000));
+  const nowSec = Math.floor(Date.now() / 1000);
+  const fundingOver = nowSec >= Number(vault.fundingEnd);
+
+  // Allowed transitions from the current state.
+  const canStartFunding = vault.state === 0; // Closed
+  const canStartInvesting = vault.state === 1 && fundingOver; // Funding ended
+  const canOpenWithdrawals = (vault.state === 1 && fundingOver) || (vault.state === 2 && !vault.custodied);
+  const canClose = vault.state !== 0 && !vault.custodied;
 
   return (
     <div className="card p-5">
-      <div className="text-sm font-medium">Admin · this vault</div>
+      <div className="text-sm font-medium">Admin · lifecycle</div>
+      <p className="mt-1 text-xs text-muted">Current state: {phaseLabel(vault.phase)}</p>
 
+      {/* Start funding (only when Closed) */}
       <div className="mt-4">
-        <label className="label">Whitelist address</label>
-        <div className="flex gap-2">
-          <input className="input font-mono" placeholder="0x…" value={wl} onChange={(e) => setWl(e.target.value)} />
-          <button
-            className="btn btn-primary whitespace-nowrap"
-            disabled={whitelist.pending || !isAddress(wl)}
-            onClick={() =>
-              whitelist
-                .run({ address, abi: vaultAbi, functionName: "setWhitelistStatus", args: [wl as Address, true] })
-                .then(() => setWl(""))
-            }
-          >
-            {whitelist.pending ? "…" : "Add"}
-          </button>
-        </div>
-        <ErrorLine error={whitelist.error} />
-      </div>
-
-      <div className="mt-5">
-        <label className="label">Start epoch</label>
+        <label className="label">Start funding period</label>
         <div className="grid gap-2">
-          <Field label="Funding start" value={fundingStart} onChange={setFundingStart} />
-          <Field label="Epoch start" value={epochStart} onChange={setEpochStart} />
-          <Field label="Epoch end" value={epochEnd} onChange={setEpochEnd} />
+          <Field label="Funding opens" value={fundingStart} onChange={setFundingStart} />
+          <Field label="Funding closes" value={fundingEnd} onChange={setFundingEnd} />
         </div>
         <button
           className="btn btn-primary mt-3 w-full"
-          disabled={startEpoch.pending || !fundingStart || !epochStart || !epochEnd}
+          disabled={startFunding.pending || !canStartFunding || !fundingStart || !fundingEnd}
           onClick={() =>
-            startEpoch.run({
+            startFunding.run({
               address,
               abi: vaultAbi,
-              functionName: "startEpoch",
-              args: [toTs(fundingStart), toTs(epochStart), toTs(epochEnd)],
+              functionName: "startFunding",
+              args: [toTs(fundingStart), toTs(fundingEnd)],
             })
           }
         >
-          {startEpoch.pending ? "…" : "Start epoch"}
+          {startFunding.pending ? "…" : "Start funding"}
         </button>
-        <ErrorLine error={startEpoch.error} />
+        {!canStartFunding && (
+          <p className="mt-1 text-xs text-muted">Available only when the vault is Closed.</p>
+        )}
+        <ErrorLine error={startFunding.error} />
       </div>
+
+      {/* Post-funding transitions */}
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <button
+          className="btn"
+          disabled={startInvesting.pending || !canStartInvesting}
+          onClick={() => startInvesting.run({ address, abi: vaultAbi, functionName: "startInvesting" })}
+        >
+          {startInvesting.pending ? "…" : "→ Investing"}
+        </button>
+        <button
+          className="btn"
+          disabled={openWithdrawals.pending || !canOpenWithdrawals}
+          onClick={() => openWithdrawals.run({ address, abi: vaultAbi, functionName: "openWithdrawals" })}
+        >
+          {openWithdrawals.pending ? "…" : "→ Open withdrawals"}
+        </button>
+      </div>
+      <ErrorLine error={startInvesting.error} />
+      <ErrorLine error={openWithdrawals.error} />
+
+      <button
+        className="btn mt-2 w-full"
+        disabled={closeVault.pending || !canClose}
+        onClick={() => closeVault.run({ address, abi: vaultAbi, functionName: "closeVault" })}
+      >
+        {closeVault.pending ? "…" : "Close vault (reset for new round)"}
+      </button>
+      <ErrorLine error={closeVault.error} />
+      <p className="mt-2 text-xs text-muted">
+        After funding closes, switch to Investing (allocator custodies) or straight to Open withdrawals.
+      </p>
     </div>
   );
 }

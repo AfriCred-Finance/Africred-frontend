@@ -16,6 +16,18 @@ export function fmtBps(bps?: bigint | number) {
   return `${Number(bps) / 100}%`;
 }
 
+/** Human label for the repayment schedule. type 0 = at maturity, 1 = periodic. */
+export function fmtRepayment(type?: number, intervalDays?: bigint | number) {
+  if (type === undefined) return "—";
+  if (type === 0) return "At maturity";
+  const d = Number(intervalDays ?? 0);
+  if (d === 7) return "Weekly";
+  if (d === 14 || d === 15) return `Every ${d} days`;
+  if (d === 30) return "Monthly";
+  if (d === 90) return "Quarterly";
+  return `Every ${d} days`;
+}
+
 export function fmtDate(ts?: bigint | number) {
   if (!ts) return "—";
   const n = Number(ts);
@@ -26,31 +38,35 @@ export function fmtDate(ts?: bigint | number) {
   });
 }
 
-export type VaultPhase = "no-epoch" | "funding" | "active" | "settled";
+export type VaultPhase = "closed" | "fundingScheduled" | "funding" | "fundingEnded" | "investing" | "withdrawals";
 
 export function phaseLabel(phase: VaultPhase) {
   switch (phase) {
     case "funding":
       return "Funding";
-    case "active":
-      return "Active";
-    case "settled":
-      return "Settled";
+    case "fundingScheduled":
+      return "Funding soon";
+    case "fundingEnded":
+      return "Funding ended";
+    case "investing":
+      return "Investing";
+    case "withdrawals":
+      return "Withdrawals open";
     default:
-      return "No epoch";
+      return "Closed";
   }
 }
 
-/** Derive the lifecycle phase from on-chain flags + timestamps. */
-export function derivePhase(args: {
-  started: boolean;
-  custodied: boolean;
-  isFunding: boolean;
-  isInEpoch: boolean;
-  epochStart: bigint;
-}): VaultPhase {
-  if (!args.started && args.epochStart === 0n) return "no-epoch";
-  if (args.isFunding) return "funding";
-  if (args.isInEpoch || args.custodied) return "active";
-  return "settled";
+/** Derive the lifecycle phase from the on-chain state enum + funding window.
+ *  state: 0 Closed, 1 Funding, 2 Investing, 3 OpenWithdrawal. */
+export function derivePhase(state: number, fundingStart: bigint, fundingEnd: bigint): VaultPhase {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (state === 1) {
+    if (now < fundingStart) return "fundingScheduled";
+    if (now >= fundingEnd) return "fundingEnded";
+    return "funding";
+  }
+  if (state === 2) return "investing";
+  if (state === 3) return "withdrawals";
+  return "closed";
 }

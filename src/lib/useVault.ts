@@ -6,7 +6,7 @@ import type { Address } from "viem";
 import { vaultAbi } from "./abis";
 import { derivePhase } from "./format";
 
-export type EpochInfo = { fundingStart: bigint; epochStart: bigint; epochEnd: bigint };
+const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 export function useVault(vault?: Address, account?: Address) {
   const base = vault ? ({ address: vault, abi: vaultAbi } as const) : undefined;
@@ -25,14 +25,17 @@ export function useVault(vault?: Address, account?: Address) {
           { ...base, functionName: "totalSupply" },
           { ...base, functionName: "totalDeposits" },
           { ...base, functionName: "maxDeposits" },
+          { ...base, functionName: "loanTermDays" },
+          { ...base, functionName: "targetAprBps" },
+          { ...base, functionName: "repaymentType" },
+          { ...base, functionName: "paymentIntervalDays" },
           { ...base, functionName: "custodied" },
-          { ...base, functionName: "started" },
-          { ...base, functionName: "isFunding" },
-          { ...base, functionName: "isInEpoch" },
-          { ...base, functionName: "getCurrentEpoch" },
-          { ...base, functionName: "getCurrentEpochInfo" },
-          { ...base, functionName: "balanceOf", args: [account ?? "0x0000000000000000000000000000000000000000"] },
-          { ...base, functionName: "whitelisted", args: [account ?? "0x0000000000000000000000000000000000000000"] },
+          { ...base, functionName: "state" },
+          { ...base, functionName: "fundingStart" },
+          { ...base, functionName: "fundingEnd" },
+          { ...base, functionName: "depositsOpen" },
+          { ...base, functionName: "withdrawalsOpen" },
+          { ...base, functionName: "balanceOf", args: [account ?? ZERO] },
         ]
       : [],
     query: { enabled: Boolean(vault), refetchInterval: 8000 },
@@ -51,14 +54,17 @@ export function useVault(vault?: Address, account?: Address) {
       totalSupply,
       totalDeposits,
       maxDeposits,
+      loanTermDays,
+      targetAprBps,
+      repaymentType,
+      paymentIntervalDays,
       custodied,
-      started,
-      isFunding,
-      isInEpoch,
-      epochId,
-      epochInfo,
+      state,
+      fundingStart,
+      fundingEnd,
+      depositsOpen,
+      withdrawalsOpen,
       shareBalance,
-      whitelisted,
     ] = data as unknown as [
       string,
       string,
@@ -70,18 +76,20 @@ export function useVault(vault?: Address, account?: Address) {
       bigint,
       bigint,
       bigint,
+      bigint,
+      bigint,
+      number,
+      bigint,
       boolean,
-      boolean,
+      number,
+      bigint,
+      bigint,
       boolean,
       boolean,
       bigint,
-      EpochInfo,
-      bigint,
-      boolean,
     ];
 
-    const phase = derivePhase({ started, custodied, isFunding, isInEpoch, epochStart: epochInfo.epochStart });
-    // Share price = totalAssets / totalSupply (in asset units), guarding div-by-zero.
+    const phase = derivePhase(state, fundingStart, fundingEnd);
     const sharePrice = totalSupply > 0n ? Number(totalAssets) / Number(totalSupply) : 1;
 
     return {
@@ -98,14 +106,17 @@ export function useVault(vault?: Address, account?: Address) {
         totalSupply,
         totalDeposits,
         maxDeposits,
+        loanTermDays,
+        targetAprBps,
+        repaymentType,
+        paymentIntervalDays,
         custodied,
-        started,
-        isFunding,
-        isInEpoch,
-        epochId,
-        epochInfo,
+        state,
+        fundingStart,
+        fundingEnd,
+        depositsOpen,
+        withdrawalsOpen,
         shareBalance,
-        whitelisted,
         phase,
         sharePrice,
       },

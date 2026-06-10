@@ -1,21 +1,63 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
+import { useState } from "react";
+import { useAccount, useConnect, useDisconnect, useSwitchChain, type Connector } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { shortAddr } from "@/lib/format";
 
 export function ConnectButton() {
   const { address, isConnected, chainId } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
+  const { connectAsync, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function pick(connector: Connector) {
+    setErr(null);
+    try {
+      await connectAsync({ connector });
+      setOpen(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (/rejected|denied/i.test(msg)) setErr("Request rejected in your wallet.");
+      else setErr("Couldn't connect. Unlock the wallet and try again.");
+    }
+  }
 
   if (!isConnected) {
-    const injected = connectors[0];
     return (
-      <button className="btn btn-primary" onClick={() => injected && connect({ connector: injected })} disabled={isPending}>
-        {isPending ? "Connecting…" : "Connect wallet"}
-      </button>
+      <div className="relative">
+        <button className="btn btn-primary" onClick={() => setOpen((o) => !o)} disabled={isPending}>
+          {isPending ? "Connecting…" : "Connect wallet"}
+        </button>
+
+        {open && (
+          <>
+            {/* click-away backdrop */}
+            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+            <div className="card absolute right-0 z-20 mt-2 w-64 p-2 shadow-sm">
+              <div className="px-2 py-1.5 text-xs text-muted">Choose a wallet</div>
+              {dedupeWallets(connectors).map((c) => (
+                <button
+                  key={c.uid}
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-ink/[0.04]"
+                  onClick={() => pick(c)}
+                >
+                  <WalletIcon connector={c} />
+                  <span className="font-medium">{c.name}</span>
+                </button>
+              ))}
+              {dedupeWallets(connectors).length === 0 && (
+                <div className="px-2 py-2 text-sm text-muted">
+                  No wallet detected. Install MetaMask, Rabby, or Phantom.
+                </div>
+              )}
+              {err && <div className="px-2 py-2 text-xs text-red-700/80">{err}</div>}
+            </div>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -34,4 +76,28 @@ export function ConnectButton() {
       </button>
     </div>
   );
+}
+
+function WalletIcon({ connector }: { connector: Connector }) {
+  if (connector.icon) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={connector.icon} alt="" className="h-5 w-5 rounded" />;
+  }
+  return <span className="h-5 w-5 rounded bg-ink/10" />;
+}
+
+/** EIP-6963 discovery can surface duplicates + a generic "Injected" entry. Keep one per name and
+ *  drop the generic fallback when real, named wallets are present. */
+function dedupeWallets(connectors: readonly Connector[]): Connector[] {
+  const named = connectors.filter((c) => c.name && c.name.toLowerCase() !== "injected");
+  const source = named.length > 0 ? named : connectors;
+  const seen = new Set<string>();
+  const out: Connector[] = [];
+  for (const c of source) {
+    const key = c.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
 }

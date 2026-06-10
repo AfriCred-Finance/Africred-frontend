@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
 import { useVault } from "@/lib/useVault";
-import { fmtUnits, phaseLabel } from "@/lib/format";
+import { fmtUnits, fmtBps, fmtRepayment, phaseLabel } from "@/lib/format";
 import { PhaseBadge } from "./Stat";
 
 export function VaultCard({ address }: { address: Address }) {
@@ -26,9 +26,14 @@ export function VaultCard({ address }: { address: Address }) {
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted">Share price</div>
-          <div className="text-base font-semibold">{vault ? vault.sharePrice.toFixed(4) : "—"}</div>
+          <div className="text-xs text-muted">Target APR</div>
+          <div className="text-base font-semibold">{vault ? fmtBps(vault.targetAprBps) : "—"}</div>
         </div>
+      </div>
+      <div className="mt-4 border-t border-line pt-3 text-xs text-muted">
+        {vault
+          ? `${vault.loanTermDays.toString()}-day term · ${fmtRepayment(vault.repaymentType, vault.paymentIntervalDays)}`
+          : ""}
       </div>
     </Link>
   );
