@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useReadContract, useReadContracts, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useReadContract, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, isAddress, keccak256, toBytes, type Address } from "viem";
@@ -368,6 +368,9 @@ function CreateLoan({
   onCreated: (vault: Address | null) => void;
 }) {
   const writeContract = useWriteContract();
+  const connectedChainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
+  const wrongChain = Boolean(account) && connectedChainId !== CHAIN_ID;
   const [poolType, setPoolType] = useState<"simple" | "tranched">("simple");
 
   // ---- factory owner gate
@@ -555,8 +558,14 @@ function CreateLoan({
       }
     }
 
-    setFlow((f) => ({ ...f, txStatus: "pending" }));
+    setFlow((f) => ({ ...f, txStatus: "pending", txHash: "" }));
     try {
+      // Make sure the wallet is on Base Sepolia before sending. wagmi will prompt
+      // the wallet to switch; if the user rejects, we surface a clear error.
+      if (connectedChainId !== CHAIN_ID) {
+        await switchChainAsync({ chainId: CHAIN_ID });
+      }
+
       const principalWei = parseUnits(form.principal as `${number}`, USDC_DECIMALS);
       const loanParams = {
         borrowerRef: keccak256(toBytes(form.borrower)),
@@ -589,8 +598,21 @@ function CreateLoan({
         abi: factoryAbi,
         functionName: "createLoanVault",
         args: [loanParams, vaultParams],
+        chainId: CHAIN_ID,
       });
-      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });
+      // Show the hash right away so the user can independently track it on Basescan
+      // instead of staring at "Waiting for confirmation..." with no feedback.
+      setFlow((f) => ({ ...f, txHash: hash }));
+
+      const receipt = await waitForTransactionReceipt(wagmiConfig, {
+        hash,
+        chainId: CHAIN_ID,
+        timeout: 120_000,
+      });
+
+      if (receipt.status !== "success") {
+        throw new Error("Transaction reverted on-chain. Check the tx on Basescan for the revert reason.");
+      }
 
       let newVault: Address | null = null;
       for (const log of receipt.logs) {
@@ -630,6 +652,20 @@ function CreateLoan({
       )}
       {FACTORY_ADDRESS && account && ownerLoading && !ownerKnown && (
         <div className="card p-4 text-sm text-muted">Verifying factory owner over RPC...</div>
+      )}
+      {wrongChain && (
+        <div className="card flex items-center justify-between border-negative/30 p-4 text-sm">
+          <span className="text-negative">
+            Wrong network. Connect to Base Sepolia (chain id {CHAIN_ID}) to create a vault.
+          </span>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => switchChainAsync({ chainId: CHAIN_ID }).catch(() => undefined)}
+          >
+            Switch network
+          </button>
+        </div>
       )}
 
       {step === 0 && (
@@ -1035,9 +1071,26 @@ function StatusStrip({
         />
       </div>
 
+      {txStatus === "pending" && txHash && (
+        <p className="mt-3 text-[11px] text-ink2">
+          Tx broadcast:{" "}
+          <a className="link-accent" href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer">
+            {`${txHash.slice(0, 10)}...${txHash.slice(-8)}`}
+          </a>
+        </p>
+      )}
+
       {error && (
         <p className="mt-3 break-words rounded border border-negative/30 bg-negative/[0.06] p-2 text-[11px] text-negative">
           {error}
+          {txHash && (
+            <>
+              {" "}
+              <a className="link-accent" href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer">
+                View tx
+              </a>
+            </>
+          )}
         </p>
       )}
 
