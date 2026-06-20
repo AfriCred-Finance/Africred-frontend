@@ -6,6 +6,7 @@ import type { Address } from "viem";
 import { useAccount } from "wagmi";
 import { useVault } from "@/lib/useVault";
 import { useDossierFiles } from "@/hooks/useDossierFiles";
+import { useHiddenVaults } from "@/lib/hiddenVaults";
 import { EXPLORER } from "@/lib/contracts";
 import { fmtUnits, fmtBps, fmtRepayment, fmtLoanStatus, phaseLabel, shortAddr } from "@/lib/format";
 import { ipfsToHttp } from "@/lib/ipfs";
@@ -74,6 +75,8 @@ export function VaultCard({
   const { address: account } = useAccount();
   const { vault, refetch } = useVault(address, account);
   const [expanded, setExpanded] = useState(false);
+  const { isHidden, toggle: toggleHidden } = useHiddenVaults();
+  const hidden = isHidden(address);
   const loan = vault?.loan;
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -90,9 +93,16 @@ export function VaultCard({
       className={`card p-5 transition-colors ${highlight ? "border-accent/40 ring-1 ring-accent/30" : ""}`}
     >
       <div className="flex items-center justify-between gap-3">
-        <Link href={`/vault/${address}`} className="font-medium tracking-tight hover:underline">
-          {vault?.name ?? "Loading…"}
-        </Link>
+        <div className="flex min-w-0 items-center gap-2">
+          <Link href={`/vault/${address}`} className="truncate font-medium tracking-tight hover:underline">
+            {vault?.name ?? "Loading…"}
+          </Link>
+          {manageable && hidden && (
+            <span className="rounded-full border border-rule2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink3">
+              Hidden
+            </span>
+          )}
+        </div>
         {vault && <PhaseBadge phase={fmtLoanStatus(vault.loan?.status)} />}
       </div>
 
@@ -129,13 +139,23 @@ export function VaultCard({
 
       {manageable && vault && (
         <>
-          <button
-            type="button"
-            className="btn mt-4 w-full"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? "Hide management" : "Manage"}
-          </button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Hide management" : "Manage"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => toggleHidden(address)}
+              title="Hide or show this vault on the public /vaults page (saved in this browser)."
+            >
+              {hidden ? "Show on /vaults" : "Hide from /vaults"}
+            </button>
+          </div>
           {expanded && (
             <div className="mt-4 border-t border-line pt-4">
               <VaultManageSection

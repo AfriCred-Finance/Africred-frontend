@@ -4,6 +4,7 @@ import { useReadContract } from "wagmi";
 import type { Address } from "viem";
 import { factoryAbi } from "@/lib/abis";
 import { FACTORY_ADDRESS } from "@/lib/contracts";
+import { useHiddenVaults } from "@/lib/hiddenVaults";
 import { VaultRow } from "@/components/VaultRow";
 import { ConfigBanner } from "@/components/ConfigBanner";
 
@@ -15,7 +16,9 @@ export default function VaultsPage() {
     query: { enabled: Boolean(FACTORY_ADDRESS), refetchInterval: 30000 },
   });
 
-  const list = (vaults as Address[] | undefined) ?? [];
+  const { isHidden } = useHiddenVaults();
+  const all = (vaults as Address[] | undefined) ?? [];
+  const list = all.filter((v) => !isHidden(v));
 
   return (
     <>

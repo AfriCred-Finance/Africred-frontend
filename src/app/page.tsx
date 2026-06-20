@@ -39,6 +39,8 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Sections below the hero are temporarily disabled. Flip this to true to restore them. */}
+      {false && (<>
       {/* The Problem */}
       <section className="hairline border-b">
         <div className="mx-auto max-w-content px-6 py-20 lg:px-12">
@@ -180,6 +182,7 @@ export default function Home() {
           </div>
         </div>
       </section>
+      </>)}
     </>
   );
 }
