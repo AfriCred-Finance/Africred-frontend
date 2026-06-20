@@ -1,12 +1,31 @@
 "use client";
 
 import { useMemo } from "react";
-import { useReadContracts } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 import type { Address } from "viem";
-import { vaultAbi } from "./abis";
+import { vaultAbi, loanRegistryAbi } from "./abis";
 import { derivePhase } from "./format";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
+
+export type Loan = {
+  vault: Address;
+  borrowerRef: `0x${string}`;
+  principal: bigint;
+  rateBps: bigint;                  // flat interest rate in bps (e.g. 1500 = 15%)
+  termDays: number;
+  repaymentType: number;            // 0 bullet, 1 interest-periodic, 2 amortizing
+  installments: number;
+  risk: number;                     // 0 Low, 1 Medium, 2 High
+  agreementHash: `0x${string}`;
+  dossierURI: string;
+  description: string;
+  status: number;                   // 0 Active, 1 Repaying, 2 Repaid, 3 Defaulted
+  amountRepaid: bigint;
+  installmentsPaid: number;
+  nextInstallmentAmount: bigint;
+  nextDueDate: bigint;              // unix timestamp
+};
 
 export function useVault(vault?: Address, account?: Address) {
   const base = vault ? ({ address: vault, abi: vaultAbi } as const) : undefined;
@@ -25,24 +44,39 @@ export function useVault(vault?: Address, account?: Address) {
           { ...base, functionName: "totalSupply" },
           { ...base, functionName: "totalDeposits" },
           { ...base, functionName: "maxDeposits" },
-          { ...base, functionName: "loanTermDays" },
-          { ...base, functionName: "targetAprBps" },
-          { ...base, functionName: "repaymentType" },
-          { ...base, functionName: "paymentIntervalDays" },
+          { ...base, functionName: "loanRegistry" },
+          { ...base, functionName: "loanId" },
           { ...base, functionName: "custodied" },
           { ...base, functionName: "state" },
-          { ...base, functionName: "fundingStart" },
-          { ...base, functionName: "fundingEnd" },
+          { ...base, functionName: "tranched" },
+          { ...base, functionName: "bufferAmount" },
           { ...base, functionName: "depositsOpen" },
           { ...base, functionName: "withdrawalsOpen" },
           { ...base, functionName: "balanceOf", args: [account ?? ZERO] },
+          { ...base, functionName: "recoveryRecorded" },
+          { ...base, functionName: "whitelistEnabled" },
         ]
       : [],
-    query: { enabled: Boolean(vault), refetchInterval: 8000 },
+    query: { enabled: Boolean(vault), refetchInterval: 30000 },
+  });
+
+  const loanRegistry = data ? (data[10] as Address) : undefined;
+  const loanId = data ? (data[11] as bigint) : undefined;
+
+  const { data: loanData, refetch: refetchLoan } = useReadContract({
+    address: loanRegistry,
+    abi: loanRegistryAbi,
+    functionName: "getLoan",
+    args: loanId !== undefined ? [loanId] : undefined,
+    query: { enabled: Boolean(loanRegistry && loanId !== undefined), refetchInterval: 30000 },
   });
 
   return useMemo(() => {
-    if (!data) return { isLoading, refetch, vault: undefined };
+    const refetchAll = () => {
+      refetch();
+      refetchLoan();
+    };
+    if (!data) return { isLoading, refetch: refetchAll, vault: undefined };
     const [
       name,
       symbol,
@@ -54,17 +88,17 @@ export function useVault(vault?: Address, account?: Address) {
       totalSupply,
       totalDeposits,
       maxDeposits,
-      loanTermDays,
-      targetAprBps,
-      repaymentType,
-      paymentIntervalDays,
+      registry,
+      lid,
       custodied,
       state,
-      fundingStart,
-      fundingEnd,
+      tranched,
+      bufferAmount,
       depositsOpen,
       withdrawalsOpen,
       shareBalance,
+      recoveryRecorded,
+      whitelistEnabled,
     ] = data as unknown as [
       string,
       string,
@@ -76,25 +110,26 @@ export function useVault(vault?: Address, account?: Address) {
       bigint,
       bigint,
       bigint,
-      bigint,
-      bigint,
-      number,
+      Address,
       bigint,
       boolean,
       number,
-      bigint,
+      boolean,
       bigint,
       boolean,
       boolean,
       bigint,
+      boolean,
+      boolean,
     ];
 
-    const phase = derivePhase(state, fundingStart, fundingEnd);
+    const phase = derivePhase(state);
     const sharePrice = totalSupply > 0n ? Number(totalAssets) / Number(totalSupply) : 1;
+    const loan = (loanData as Loan | undefined) ?? undefined;
 
     return {
       isLoading,
-      refetch,
+      refetch: refetchAll,
       vault: {
         name,
         symbol,
@@ -106,20 +141,21 @@ export function useVault(vault?: Address, account?: Address) {
         totalSupply,
         totalDeposits,
         maxDeposits,
-        loanTermDays,
-        targetAprBps,
-        repaymentType,
-        paymentIntervalDays,
+        loanRegistry: registry,
+        loanId: lid,
         custodied,
         state,
-        fundingStart,
-        fundingEnd,
+        tranched,
+        bufferAmount,
         depositsOpen,
         withdrawalsOpen,
         shareBalance,
+        recoveryRecorded,
+        whitelistEnabled,
         phase,
         sharePrice,
+        loan,
       },
     };
-  }, [data, isLoading, refetch]);
+  }, [data, loanData, isLoading, refetch, refetchLoan]);
 }

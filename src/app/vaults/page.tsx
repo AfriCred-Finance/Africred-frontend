@@ -4,7 +4,7 @@ import { useReadContract } from "wagmi";
 import type { Address } from "viem";
 import { factoryAbi } from "@/lib/abis";
 import { FACTORY_ADDRESS } from "@/lib/contracts";
-import { VaultCard } from "@/components/VaultCard";
+import { VaultRow } from "@/components/VaultRow";
 import { ConfigBanner } from "@/components/ConfigBanner";
 
 export default function VaultsPage() {
@@ -12,35 +12,84 @@ export default function VaultsPage() {
     address: FACTORY_ADDRESS,
     abi: factoryAbi,
     functionName: "allVaults",
-    query: { enabled: Boolean(FACTORY_ADDRESS), refetchInterval: 10000 },
+    query: { enabled: Boolean(FACTORY_ADDRESS), refetchInterval: 30000 },
   });
 
   const list = (vaults as Address[] | undefined) ?? [];
 
   return (
-    <div>
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vaults</h1>
-          <p className="mt-1 text-sm text-muted">All credit vaults deployed by the protocol.</p>
+    <>
+      {/* Page header */}
+      <section className="hairline relative overflow-hidden border-b">
+        <div className="grid-bg pointer-events-none absolute inset-0 opacity-40" />
+        <div className="relative mx-auto max-w-content px-6 py-14 lg:px-12 lg:py-20">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <h1 className="text-4xl font-light tracking-[-0.02em] lg:text-5xl">
+                Credit vault marketplace
+              </h1>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-10 gap-y-2 font-mono">
+              <div>
+                <div className="eyebrow !text-[10px]">Vaults</div>
+                <div className="num mt-1 text-2xl">{String(list.length).padStart(2, "0")}</div>
+              </div>
+              <div>
+                <div className="eyebrow !text-[10px]">Network</div>
+                <div className="num mt-1 text-2xl">Base Sepolia</div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <ConfigBanner />
+      {/* Vault table */}
+      <section className="hairline border-b">
+        <div className="mx-auto max-w-content px-6 py-10 lg:px-12 lg:py-14">
+          <ConfigBanner />
 
-      {FACTORY_ADDRESS && isLoading && <p className="text-sm text-muted">Loading vaults…</p>}
+          <div className="hairline mt-4 overflow-hidden rounded-sm border">
+            {/* Table head — desktop only */}
+            <div className="eyebrow hairline hidden h-12 grid-cols-[1.7fr_.55fr_.95fr_.55fr_.95fr_170px_auto] items-center gap-4 border-b !text-[10px] bg-bg2/40 px-6 lg:grid">
+              <div>Vault</div>
+              <div className="text-right">APY</div>
+              <div className="text-right">TVL</div>
+              <div>Asset</div>
+              <div className="text-right">Position</div>
+              <div>Status</div>
+              <div className="w-[180px]" />
+            </div>
 
-      {FACTORY_ADDRESS && !isLoading && list.length === 0 && (
-        <div className="card p-8 text-center text-sm text-muted">
-          No vaults yet. Create one from the <a className="text-ink underline" href="/admin">Admin</a> page.
+            {/* Rows */}
+            {!FACTORY_ADDRESS ? (
+              <div className="px-6 py-16 text-center text-sm text-ink2">
+                Configure the factory address to view vaults.
+              </div>
+            ) : isLoading ? (
+              <div className="px-6 py-16 text-center text-sm text-ink2">Loading vaults…</div>
+            ) : list.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <p className="text-sm text-ink2">No vaults deployed yet.</p>
+                <p className="mt-1 font-mono text-[11px] text-ink3">
+                  Create one from the <a className="link-accent" href="/admin">Admin</a> page.
+                </p>
+              </div>
+            ) : (
+              <div className="hairline divide-y">
+                {list.map((v) => (
+                  <VaultRow key={v} address={v} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p className="mt-4 font-mono text-[12px] text-ink3">
+            // APY is annualized from the loan&apos;s flat rate over its term (rate × 365 / days). Open a vault to
+            see the full loan economics.
+          </p>
         </div>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        {list.map((v) => (
-          <VaultCard key={v} address={v} />
-        ))}
-      </div>
-    </div>
+      </section>
+    </>
   );
 }

@@ -10,12 +10,14 @@ export function Stat({ label, value, sub }: { label: string; value: React.ReactN
 
 export function PhaseBadge({ phase }: { phase: string }) {
   const tone =
-    phase === "Funding"
+    phase === "Funding" || phase === "Active"
       ? "border-accent/40 text-accent"
-      : phase === "Investing"
+      : phase === "Investing" || phase === "Repaying"
         ? "border-ink/30 text-ink"
-        : phase === "Withdrawals open"
+        : phase === "Withdrawals open" || phase === "Repaid"
           ? "border-accent/40 text-accent"
-          : "border-line text-muted";
+          : phase === "Defaulted"
+            ? "border-red-500/30 text-red-700"
+            : "border-line text-muted";
   return <span className={`tag ${tone}`}>{phase}</span>;
 }

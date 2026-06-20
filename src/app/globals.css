@@ -2,33 +2,680 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ============================================================
+   Theme tokens — adopted from the Dirac Finance v3 design system.
+   CSS variables are space-separated rgb triples so Tailwind alpha
+   modifiers (bg-bg/85) work via rgb(var(--x) / <alpha-value>).
+
+   AfriCred ships light-only for now, but the dark theme tokens
+   are defined to keep a future toggle one class away.
+   ============================================================ */
+
+:root,
+:root.theme-light {
+  --bg: 245 241 232; /* #F5F1E8 cream */
+  --bg2: 250 247 238; /* #FAF7EE */
+  --surface: 255 255 255;
+  --ink: 20 17 13; /* #14110D near-black */
+  --ink2: 90 84 72; /* #5A5448 */
+  --ink3: 138 132 116; /* #8A8474 */
+  --rule: 220 214 199; /* #DCD6C7 hairline */
+  --rule2: 184 176 160; /* #B8B0A0 */
+  --accent: 184 87 51; /* #B85733 refined rust */
+  --accent2: 107 47 24; /* #6B2F18 */
+  --positive: 47 93 58; /* #2F5D3A */
+  --negative: 122 42 31; /* #7A2A1F */
+
+  --grid-line: rgba(220, 214, 199, 0.6);
   color-scheme: light;
 }
 
-body {
-  background-color: theme("colors.paper");
-  color: theme("colors.ink");
-  -webkit-font-smoothing: antialiased;
+:root.theme-dark {
+  --bg: 14 13 11;
+  --bg2: 20 19 16;
+  --surface: 25 24 20;
+  --ink: 237 231 215;
+  --ink2: 154 147 132;
+  --ink3: 107 101 87;
+  --rule: 42 39 35;
+  --rule2: 58 53 45;
+  --accent: 201 133 74;
+  --accent2: 160 105 52;
+  --positive: 123 170 130;
+  --negative: 199 119 100;
+
+  --grid-line: rgba(58, 53, 45, 0.5);
+  color-scheme: dark;
 }
 
+/* ============================================================
+   Base
+   ============================================================ */
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--ink));
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.num {
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Reusable utility classes
+   ============================================================ */
+
+.eyebrow {
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgb(var(--ink2));
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.hairline {
+  border-color: rgb(var(--rule)) !important;
+}
+.hairline2 {
+  border-color: rgb(var(--rule2)) !important;
+}
+
+/* "Live" pulse dot */
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(var(--positive));
+  box-shadow: 0 0 0 0 rgb(var(--positive) / 0.6);
+  animation: pulse 2.4s ease-out infinite;
+  flex-shrink: 0;
+  display: inline-block;
+}
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--positive) / 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgb(var(--positive) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--positive) / 0);
+  }
+}
+
+/* Status pill (loan status, vault phase, etc.) */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgb(var(--rule2));
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--ink2));
+  white-space: nowrap;
+}
+.pill.live {
+  color: rgb(var(--positive));
+  border-color: rgb(var(--positive) / 0.35);
+}
+.pill.live::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgb(var(--positive));
+}
+.pill.coming {
+  color: rgb(var(--ink3));
+}
+
+/* Network chip for the top status bar */
+.net-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 1px solid rgb(var(--rule2));
+  border-radius: 9999px;
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--ink));
+  font-weight: 500;
+  background: rgb(var(--bg2));
+}
+.net-chip::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgb(var(--accent));
+  flex-shrink: 0;
+}
+
+/* Inline link with rust underline */
+.link-accent {
+  color: rgb(var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+.link-accent:hover {
+  color: rgb(var(--ink));
+}
+
+/* Table row hover (used in vaults list) */
+.row-hover:hover {
+  background: rgb(var(--bg2));
+}
+
+/* Partner / ecosystem grid cell — warm tan in light mode, darker bg2 in dark mode */
+.partner-cell-bg {
+  background: rgb(var(--ink3));
+}
+:root.theme-dark .partner-cell-bg {
+  background: rgb(var(--bg2));
+}
+
+/* High-contrast "problem" cards (dark on light theme; lifted surface on dark theme) */
+.problem-card {
+  background: rgb(var(--ink));
+  color: rgb(var(--bg));
+  border: 1px solid rgb(var(--ink));
+  border-radius: 4px;
+}
+.problem-card .problem-body {
+  color: rgb(var(--bg) / 0.7);
+}
+:root.theme-dark .problem-card {
+  background: rgb(var(--bg2));
+  color: rgb(var(--ink));
+  border-color: rgb(var(--rule));
+}
+:root.theme-dark .problem-card .problem-body {
+  color: rgb(var(--ink2));
+}
+
+/* Stats strip — full-width dark band with subtle rust glow */
+.stats-strip {
+  background: rgb(var(--ink));
+  color: rgb(var(--bg));
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.stats-strip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 100%, rgb(var(--accent) / 0.25) 0%, transparent 60%);
+  pointer-events: none;
+}
+:root.theme-dark .stats-strip {
+  background: rgb(var(--bg2));
+}
+
+/* Solution cards — warm rust tint on cream, subtle accent border */
+.solution-card {
+  background: rgb(var(--accent) / 0.06);
+  border: 1px solid rgb(var(--accent) / 0.18);
+  border-radius: 4px;
+  transition: transform 250ms ease, border-color 250ms ease, background 250ms ease;
+}
+.solution-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--accent) / 0.4);
+  background: rgb(var(--accent) / 0.09);
+}
+:root.theme-dark .solution-card {
+  background: rgb(var(--accent) / 0.08);
+  border-color: rgb(var(--accent) / 0.25);
+}
+
+/* Decorative grid background — for hero / page headers */
+.grid-bg {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 80px 80px;
+  background-position: -1px -1px;
+}
+
+/* Hide scrollbar while still allowing scroll */
+.hideScrollBar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hideScrollBar::-webkit-scrollbar {
+  display: none;
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fade 0.35s ease-out forwards;
+}
+@keyframes fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   Buttons — institutional flat with light hover transitions.
+   Class names map to both Dirac (.btn-primary/.btn-secondary/
+   .btn-accent/.btn-ghost) AND the af-frontend legacy `.btn` so
+   existing components keep working.
+   ============================================================ */
+
 @layer components {
-  .card {
-    @apply rounded-xl border border-line bg-white;
-  }
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg border border-ink/15 bg-white px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:bg-ink/[0.04] disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    background: transparent;
+    color: rgb(var(--ink));
+    border-color: rgb(var(--rule2));
   }
+  .btn:hover {
+    border-color: rgb(var(--accent));
+    color: rgb(var(--accent));
+  }
+  .btn:disabled {
+    border-color: rgb(var(--rule));
+    color: rgb(var(--ink3));
+  }
+
   .btn-primary {
-    @apply border-ink bg-ink text-white hover:bg-ink/90;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    background: rgb(var(--ink));
+    color: rgb(var(--bg));
+    border-color: rgb(var(--ink));
   }
+  .btn-primary:hover {
+    background: rgb(var(--accent));
+    border-color: rgb(var(--accent));
+    color: rgb(var(--bg));
+  }
+  .btn-primary:disabled {
+    background: rgb(var(--ink3));
+    border-color: rgb(var(--ink3));
+  }
+
+  .btn-secondary {
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    background: transparent;
+    color: rgb(var(--ink));
+    border-color: rgb(var(--rule2));
+  }
+  .btn-secondary:hover {
+    border-color: rgb(var(--accent));
+    color: rgb(var(--accent));
+  }
+
+  .btn-accent {
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    background: rgb(var(--accent));
+    color: rgb(var(--bg));
+    border-color: rgb(var(--accent));
+  }
+  .btn-accent:hover {
+    background: rgb(var(--accent2));
+    border-color: rgb(var(--accent2));
+  }
+
+  .btn-ghost {
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    background: transparent;
+    color: rgb(var(--ink2));
+    border-color: transparent;
+  }
+  .btn-ghost:hover {
+    color: rgb(var(--ink));
+    background: rgb(var(--bg2));
+  }
+
+  /* Cards — flat surface with a hairline border. */
+  .card {
+    @apply rounded-[4px];
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--rule));
+  }
+  .card-dark {
+    @apply rounded-[4px];
+    background: rgb(var(--bg2));
+    border: 1px solid rgb(var(--rule));
+  }
+  .card-surface {
+    @apply rounded-[4px];
+    background: rgb(var(--bg2));
+    border: 1px solid rgb(var(--rule));
+  }
+
+  /* Inputs */
   .input {
-    @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-ink/40;
+    @apply w-full rounded-[4px] border px-3 py-2 text-sm outline-none transition-colors;
+    background: rgb(var(--surface));
+    color: rgb(var(--ink));
+    border-color: rgb(var(--rule2));
   }
+  .input::placeholder {
+    color: rgb(var(--ink3));
+  }
+  .input:focus {
+    border-color: rgb(var(--accent));
+  }
+  .input:disabled {
+    background: rgb(var(--bg2));
+    color: rgb(var(--ink2));
+  }
+
+  /* Form label */
   .label {
-    @apply mb-1 block text-xs font-medium text-muted;
+    @apply mb-1 block text-xs font-medium uppercase tracking-wider;
+    color: rgb(var(--ink2));
   }
+
+  /* Generic tag (used by vault detail's loan status badge) */
   .tag {
-    @apply inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-xs font-medium text-muted;
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium;
+    border-color: rgb(var(--rule2));
+    color: rgb(var(--ink2));
+    font-family: var(--font-mono), "JetBrains Mono", monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+}
+
+/* Reset the global `input` rule from utility components above so unstyled
+   inputs (e.g., file pickers, checkboxes) don't inherit the styled padding.
+   .input handles the styled case explicitly. */
+input:not([type="file"]):not([type="checkbox"]):not([type="radio"]) {
+  background-color: transparent;
+}
+input::placeholder {
+  color: rgb(var(--ink3));
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ============================================================
+   Theme toggle (navbar sun/moon button)
+   ============================================================ */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  border: 1px solid rgb(var(--rule2));
+  background: transparent;
+  color: rgb(var(--ink2));
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+  padding: 0;
+}
+.theme-toggle:hover {
+  color: rgb(var(--ink));
+  border-color: rgb(var(--accent));
+}
+.theme-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================
+   Dropdown menus (Products / Resources in the navbar)
+   ============================================================ */
+
+.menu {
+  position: relative;
+}
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgb(var(--ink2));
+  padding: 0 8px;
+  height: 36px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  position: relative;
+  transition: color 120ms ease;
+}
+.menu-btn:hover {
+  color: rgb(var(--ink));
+}
+.menu-btn.active {
+  color: rgb(var(--ink));
+}
+.menu-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -22px;
+  height: 1px;
+  background: rgb(var(--accent));
+}
+.menu-btn .chevron {
+  width: 10px;
+  height: 10px;
+  opacity: 0.55;
+  transition: transform 150ms ease, opacity 120ms ease;
+}
+.menu-btn:hover .chevron {
+  opacity: 0.9;
+}
+.menu.open .menu-btn .chevron {
+  transform: rotate(180deg);
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: -8px;
+  min-width: 220px;
+  background: rgb(var(--bg2));
+  border: 1px solid rgb(var(--rule));
+  border-radius: 4px;
+  padding: 6px;
+  z-index: 40;
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 150ms ease, transform 150ms ease, visibility 0ms 150ms;
+}
+.menu.open .menu-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: opacity 150ms ease, transform 150ms ease, visibility 0ms 0ms;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  font-size: 13px;
+  color: rgb(var(--ink2));
+  border-radius: 3px;
+  transition: background 120ms ease, color 120ms ease;
+}
+.menu-item:hover {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+}
+.menu-item .ext {
+  font-size: 10px;
+  color: rgb(var(--ink3));
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  letter-spacing: 0.1em;
+}
+.menu-divider {
+  height: 1px;
+  background: rgb(var(--rule));
+  margin: 4px 0;
+}
+.menu-section-label {
+  padding: 8px 10px 4px;
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(var(--ink3));
+}
+
+/* Hero text reveal animations (used on the homepage) */
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes accentWipe {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.hero-line {
+  display: block;
+  opacity: 0;
+  will-change: opacity, transform;
+  animation: heroFadeUp 0.85s cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
+}
+.hero-line.line-1 {
+  animation-delay: 0.1s;
+}
+.hero-line.line-2 {
+  animation-delay: 0.34s;
+}
+.hero-sub {
+  opacity: 0;
+  will-change: opacity, transform;
+  animation: heroFadeUp 0.85s cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
+  animation-delay: 0.58s;
+}
+.hero-cta {
+  opacity: 0;
+  will-change: opacity, transform;
+  animation: heroFadeUp 0.85s cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
+  animation-delay: 0.78s;
+}
+.hero-accent {
+  position: relative;
+  display: inline-block;
+}
+.hero-accent::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.06em;
+  height: 2px;
+  background: rgb(var(--accent));
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: accentWipe 0.9s cubic-bezier(0.2, 0.65, 0.2, 1) forwards;
+  animation-delay: 0.95s;
+}
+
+/* ============================================================
+   Wallet chip — used in the dApp navbar
+   ============================================================ */
+
+.wallet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 36px;
+  border-radius: 4px;
+  border: 1px solid rgb(var(--rule2));
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: rgb(var(--ink));
+  background: transparent;
+  transition: border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.wallet-btn:hover {
+  border-color: rgb(var(--accent));
+}
+.wallet-btn .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(var(--positive));
+}
+
+/* ============================================================
+   Page-level ambient background — subtle rust blobs anchored
+   to the viewport. Adds depth without distracting.
+   ============================================================ */
+
+.bg-blobs {
+  position: relative;
+  isolation: isolate;
+}
+.bg-blobs::before,
+.bg-blobs::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(40px);
+}
+.bg-blobs::before {
+  top: -250px;
+  right: -200px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgb(var(--accent) / 0.14) 0%, transparent 65%);
+}
+.bg-blobs::after {
+  bottom: -300px;
+  left: -250px;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgb(var(--accent2) / 0.1) 0%, transparent 70%);
+  filter: blur(50px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .pulse-dot {
+    animation: none !important;
   }
 }

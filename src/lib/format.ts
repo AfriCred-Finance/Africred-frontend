@@ -11,21 +11,69 @@ export function fmtUnits(value?: bigint, decimals = 6, maxFractionDigits = 2) {
   return n.toLocaleString(undefined, { maximumFractionDigits: maxFractionDigits });
 }
 
+/** Format basis points as a percentage string. For loan rates this is a flat rate (e.g. 1500 → "15%"). */
 export function fmtBps(bps?: bigint | number) {
   if (bps === undefined) return "—";
   return `${Number(bps) / 100}%`;
 }
 
-/** Human label for the repayment schedule. type 0 = at maturity, 1 = periodic. */
-export function fmtRepayment(type?: number, intervalDays?: bigint | number) {
+/**
+ * Annualize a flat loan rate (in bps) over the loan's term and format as APY.
+ * Simple (non-compounding) annualization: rate × 365 / termDays. Matches how
+ * fixed-term private credit is typically quoted to LPs.
+ */
+export function fmtAPY(bps?: bigint | number, termDays?: number) {
+  if (bps === undefined || !termDays || termDays === 0) return "—";
+  const flatPct = Number(bps) / 100;
+  const apy = (flatPct * 365) / termDays;
+  return `${apy.toFixed(2)}%`;
+}
+
+/** Returns true if the given unix-timestamp due date is in the past. */
+export function isOverdue(nextDueDate?: bigint | number): boolean {
+  if (!nextDueDate || Number(nextDueDate) === 0) return false;
+  return Date.now() / 1000 > Number(nextDueDate);
+}
+
+/** Repayment type label. 0 bullet, 1 interest-periodic, 2 amortizing. */
+export function fmtRepayment(type?: number, installments?: number) {
   if (type === undefined) return "—";
-  if (type === 0) return "At maturity";
-  const d = Number(intervalDays ?? 0);
-  if (d === 7) return "Weekly";
-  if (d === 14 || d === 15) return `Every ${d} days`;
-  if (d === 30) return "Monthly";
-  if (d === 90) return "Quarterly";
-  return `Every ${d} days`;
+  if (type === 0) return "Bullet — at maturity";
+  const n = installments ?? 0;
+  const label = n > 0 ? `${n} installments` : "installments";
+  if (type === 1) return `Interest in ${label}, principal at maturity`;
+  if (type === 2) return `Amortizing — ${label}`;
+  return "—";
+}
+
+/** Risk label. 0 Low, 1 Medium, 2 High. */
+export function fmtRisk(risk?: number) {
+  switch (risk) {
+    case 0:
+      return "Low";
+    case 1:
+      return "Medium";
+    case 2:
+      return "High";
+    default:
+      return "—";
+  }
+}
+
+/** Loan status label. 0 Active, 1 Repaying, 2 Repaid, 3 Defaulted. */
+export function fmtLoanStatus(status?: number) {
+  switch (status) {
+    case 0:
+      return "Active";
+    case 1:
+      return "Repaying";
+    case 2:
+      return "Repaid";
+    case 3:
+      return "Defaulted";
+    default:
+      return "—";
+  }
 }
 
 export function fmtDate(ts?: bigint | number) {
@@ -38,18 +86,14 @@ export function fmtDate(ts?: bigint | number) {
   });
 }
 
-export type VaultPhase = "closed" | "fundingScheduled" | "funding" | "fundingEnded" | "investing" | "withdrawals";
+export type VaultPhase = "closed" | "funding" | "custody" | "withdrawals";
 
 export function phaseLabel(phase: VaultPhase) {
   switch (phase) {
     case "funding":
       return "Funding";
-    case "fundingScheduled":
-      return "Funding soon";
-    case "fundingEnded":
-      return "Funding ended";
-    case "investing":
-      return "Investing";
+    case "custody":
+      return "Custody";
     case "withdrawals":
       return "Withdrawals open";
     default:
@@ -57,16 +101,11 @@ export function phaseLabel(phase: VaultPhase) {
   }
 }
 
-/** Derive the lifecycle phase from the on-chain state enum + funding window.
- *  state: 0 Closed, 1 Funding, 2 Investing, 3 OpenWithdrawal. */
-export function derivePhase(state: number, fundingStart: bigint, fundingEnd: bigint): VaultPhase {
-  const now = BigInt(Math.floor(Date.now() / 1000));
-  if (state === 1) {
-    if (now < fundingStart) return "fundingScheduled";
-    if (now >= fundingEnd) return "fundingEnded";
-    return "funding";
-  }
-  if (state === 2) return "investing";
+/** Derive the lifecycle phase from the on-chain state enum.
+ *  state: 0 Closed, 1 Funding, 2 Custody, 3 OpenWithdrawal. */
+export function derivePhase(state: number): VaultPhase {
+  if (state === 1) return "funding";
+  if (state === 2) return "custody";
   if (state === 3) return "withdrawals";
   return "closed";
 }
