@@ -9,15 +9,25 @@ export function ConnectButton() {
   const { address, isConnected, chainId } = useAccount();
   const { connectAsync, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
+  const { switchChain, switchChainAsync } = useSwitchChain();
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function pick(connector: Connector) {
     setErr(null);
     try {
-      await connectAsync({ connector });
+      const res = await connectAsync({ connector });
       setOpen(false);
+      // Auto-switch to Base Sepolia right after connecting. If the wallet doesn't
+      // have the chain yet, MetaMask will prompt to add it. User rejection is
+      // non-fatal: the manual "Switch to Base Sepolia" button stays as a fallback.
+      if (res.chainId !== baseSepolia.id) {
+        try {
+          await switchChainAsync({ chainId: baseSepolia.id });
+        } catch {
+          /* user dismissed; banner + manual button remain visible */
+        }
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       if (/rejected|denied/i.test(msg)) setErr("Request rejected in your wallet.");
