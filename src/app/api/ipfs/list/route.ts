@@ -14,20 +14,32 @@ export async function GET(req: NextRequest) {
   const cid = ipfsCid(uri);
   if (!cid) return NextResponse.json({ error: "Invalid ipfs:// URI." }, { status: 400 });
 
-  const res = await fetch(`https://ipfs.io/api/v0/ls?arg=${encodeURIComponent(cid)}`, { method: "POST" });
-  if (!res.ok) {
-    const text = await res.text();
-    return NextResponse.json({ error: `IPFS ls failed: ${text.slice(0, 200)}` }, { status: 502 });
+  // New uploads pin files under a "dossier" subdirectory of the wrapping CID so that
+  // the original filenames are preserved. Older pins put files at the root, so fall
+  // back to listing the root if the dossier subdir is empty or missing.
+  const tryList = async (path: string) => {
+    const r = await fetch(`https://ipfs.io/api/v0/ls?arg=${encodeURIComponent(path)}`, { method: "POST" });
+    if (!r.ok) return null;
+    const d = (await r.json()) as IpfsLsResponse;
+    return d.Objects?.[0]?.Links ?? [];
+  };
+
+  let prefix = "dossier/";
+  let links = await tryList(`${cid}/dossier`);
+  if (!links || links.length === 0) {
+    prefix = "";
+    links = await tryList(cid);
+  }
+  if (!links) {
+    return NextResponse.json({ error: "IPFS ls failed." }, { status: 502 });
   }
 
-  const data = (await res.json()) as IpfsLsResponse;
-  const links = data.Objects?.[0]?.Links ?? [];
   const files = links
     .filter((l) => l.Type !== 1) // skip sub-directories
     .map((l) => ({
       name: l.Name,
-      uri: `ipfs://${cid}/${l.Name}`,
-      url: `https://ipfs.io/ipfs/${cid}/${encodeURIComponent(l.Name)}`,
+      uri: `ipfs://${cid}/${prefix}${l.Name}`,
+      url: `https://ipfs.io/ipfs/${cid}/${prefix}${encodeURIComponent(l.Name)}`,
     }));
 
   return NextResponse.json({ cid, files });

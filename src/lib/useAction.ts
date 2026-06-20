@@ -20,17 +20,19 @@ export function useAction(onDone?: () => void) {
   const [error, setError] = useState<string | null>(null);
 
   const run = useCallback(
-    async (args: WriteArgs) => {
+    async (args: WriteArgs): Promise<boolean> => {
       setError(null);
       setPending(true);
       try {
         const hash = await writeContractAsync(args as unknown as Parameters<typeof writeContractAsync>[0]);
         await waitForTransactionReceipt(wagmiConfig, { hash });
         onDone?.();
+        return true;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Transaction failed";
         // Trim verbose viem messages to the first meaningful line.
         setError(msg.split("\n")[0]);
+        return false;
       } finally {
         setPending(false);
       }

@@ -283,67 +283,82 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed;
     background: transparent;
     color: rgb(var(--ink));
     border-color: rgb(var(--rule2));
   }
-  .btn:hover {
+  .btn:hover:not(:disabled) {
     border-color: rgb(var(--accent));
     color: rgb(var(--accent));
   }
   .btn:disabled {
+    background: rgb(var(--bg2));
     border-color: rgb(var(--rule));
-    color: rgb(var(--ink3));
+    color: rgb(var(--ink2));
   }
 
   .btn-primary {
-    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed;
     background: rgb(var(--ink));
     color: rgb(var(--bg));
     border-color: rgb(var(--ink));
   }
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     background: rgb(var(--accent));
     border-color: rgb(var(--accent));
     color: rgb(var(--bg));
   }
   .btn-primary:disabled {
-    background: rgb(var(--ink3));
-    border-color: rgb(var(--ink3));
+    background: rgb(var(--rule2));
+    border-color: rgb(var(--rule2));
+    color: rgb(var(--bg));
   }
 
   .btn-secondary {
-    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed;
     background: transparent;
     color: rgb(var(--ink));
     border-color: rgb(var(--rule2));
   }
-  .btn-secondary:hover {
+  .btn-secondary:hover:not(:disabled) {
     border-color: rgb(var(--accent));
     color: rgb(var(--accent));
   }
+  .btn-secondary:disabled {
+    background: rgb(var(--bg2));
+    border-color: rgb(var(--rule));
+    color: rgb(var(--ink2));
+  }
 
   .btn-accent {
-    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed;
     background: rgb(var(--accent));
     color: rgb(var(--bg));
     border-color: rgb(var(--accent));
   }
-  .btn-accent:hover {
+  .btn-accent:hover:not(:disabled) {
     background: rgb(var(--accent2));
     border-color: rgb(var(--accent2));
   }
+  .btn-accent:disabled {
+    background: rgb(var(--rule2));
+    border-color: rgb(var(--rule2));
+    color: rgb(var(--bg));
+  }
 
   .btn-ghost {
-    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-9 items-center justify-center rounded-[4px] border px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed;
     background: transparent;
     color: rgb(var(--ink2));
     border-color: transparent;
   }
-  .btn-ghost:hover {
+  .btn-ghost:hover:not(:disabled) {
     color: rgb(var(--ink));
     background: rgb(var(--bg2));
+  }
+  .btn-ghost:disabled {
+    color: rgb(var(--ink3));
   }
 
   /* Cards — flat surface with a hairline border. */

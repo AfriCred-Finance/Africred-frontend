@@ -46,6 +46,7 @@ export function LoanServicingPanel({
 
   // Repayment form state — admin only updates the next due date; the amount is fixed by the schedule.
   const [newDueDate, setNewDueDate] = useState("");
+  const [repayStage, setRepayStage] = useState<"idle" | "approve" | "submit">("idle");
   const [showRestructure, setShowRestructure] = useState(false);
 
   // Recovery form state
@@ -101,29 +102,37 @@ export function LoanServicingPanel({
   const repaymentNeedsApproval =
     canRepay && usdcAllowance !== undefined && usdcAllowance < loan.nextInstallmentAmount;
 
-  function approveForRepayment() {
-    record
-      .run({
+  // One-click repay: if an allowance is needed, run approve first, then automatically
+  // send the recordRepayment tx without a second click.
+  async function repay() {
+    if (!canRepay) return;
+    if (!isFinalPayment && !newDueDate) return;
+    if (repaymentNeedsApproval) {
+      setRepayStage("approve");
+      const ok = await record.run({
         address: vault.asset,
         abi: erc20Abi,
         functionName: "approve",
         args: [address, loan!.nextInstallmentAmount],
-      })
-      .then(() => refetchUsdcAllowance());
-  }
-
-  function submitRepayment() {
-    record
-      .run({
-        address,
-        abi: vaultAbi,
-        functionName: "recordRepayment",
-        args: [newDueDateTs],
-      })
-      .then(() => {
-        setNewDueDate("");
-        refetchUsdcAllowance();
       });
+      if (!ok) {
+        setRepayStage("idle");
+        return;
+      }
+      await refetchUsdcAllowance();
+    }
+    setRepayStage("submit");
+    const ok = await record.run({
+      address,
+      abi: vaultAbi,
+      functionName: "recordRepayment",
+      args: [newDueDateTs],
+    });
+    setRepayStage("idle");
+    if (ok) {
+      setNewDueDate("");
+      refetchUsdcAllowance();
+    }
   }
 
   function submitRestructure() {
@@ -251,22 +260,21 @@ export function LoanServicingPanel({
             </p>
           )}
 
-          {repaymentNeedsApproval ? (
-            <button
-              className="btn btn-primary w-full"
-              disabled={record.pending || !canRepay}
-              onClick={approveForRepayment}
-            >
-              {record.pending ? "…" : `Approve $${fmtUnits(loan.nextInstallmentAmount, vault.decimals)} USDC`}
-            </button>
-          ) : (
-            <button
-              className="btn btn-primary w-full"
-              disabled={record.pending || !canRepay || (!isFinalPayment && !newDueDate)}
-              onClick={submitRepayment}
-            >
-              {record.pending ? "…" : "Record repayment"}
-            </button>
+          <button
+            className="btn btn-primary w-full"
+            disabled={record.pending || !canRepay || (!isFinalPayment && !newDueDate)}
+            onClick={repay}
+          >
+            {repayStage === "approve"
+              ? "Approving USDC..."
+              : repayStage === "submit"
+                ? "Sending repayment..."
+                : "Repay"}
+          </button>
+          {repaymentNeedsApproval && repayStage === "idle" && (
+            <p className="text-xs text-muted">
+              First click sends a USDC approval, then the repayment is sent automatically.
+            </p>
           )}
           <ErrorLine error={record.error} />
         </div>

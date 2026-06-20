@@ -23,7 +23,14 @@ export async function POST(req: NextRequest) {
   }
 
   const out = new FormData();
-  for (const f of files) out.append("file", f, f.name);
+  // Pinata's wrapWithDirectory only preserves the original filename when the multipart
+  // filename header is a path that includes a parent directory. Without the "dossier/"
+  // prefix, Pinata replaces the name with an internal hash. The list route looks inside
+  // this same "dossier" subdirectory.
+  for (const f of files) {
+    const safeName = f.name.replace(/[\\/]+/g, "_");
+    out.append("file", f, `dossier/${safeName}`);
+  }
   out.append("pinataOptions", JSON.stringify({ wrapWithDirectory: true }));
   out.append("pinataMetadata", JSON.stringify({ name: "africred-dossier" }));
 

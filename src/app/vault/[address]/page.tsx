@@ -228,6 +228,7 @@ function LpPanel({
 }) {
   const [amount, setAmount] = useState("");
   const [shares, setShares] = useState("");
+  const [depositStage, setDepositStage] = useState<"idle" | "approve" | "submit">("idle");
   const deposit = useAction(refetch);
   const redeem = useAction(refetch);
   const faucet = useAction(refetch);
@@ -253,6 +254,38 @@ function LpPanel({
     refetch();
     refetchToken();
   };
+
+  // One-click deposit: if an allowance is needed, run approve first, then automatically
+  // send the deposit tx without a second click.
+  async function depositFlow() {
+    if (!canDeposit || amountWei === 0n || !account) return;
+    if (needsApproval) {
+      setDepositStage("approve");
+      const ok = await deposit.run({
+        address: token,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [address, amountWei],
+      });
+      if (!ok) {
+        setDepositStage("idle");
+        return;
+      }
+      await refetchToken();
+    }
+    setDepositStage("submit");
+    const ok = await deposit.run({
+      address,
+      abi: vaultAbi,
+      functionName: "deposit",
+      args: [amountWei, account],
+    });
+    setDepositStage("idle");
+    if (ok) {
+      setAmount("");
+      refresh();
+    }
+  }
 
   return (
     <div className="card p-5">
@@ -282,35 +315,23 @@ function LpPanel({
             onChange={(e) => setAmount(e.target.value)}
             disabled={!canDeposit}
           />
-          {needsApproval ? (
-            <button
-              className="btn btn-primary whitespace-nowrap"
-              disabled={deposit.pending || !canDeposit}
-              onClick={() =>
-                deposit
-                  .run({ address: token, abi: erc20Abi, functionName: "approve", args: [address, amountWei] })
-                  .then(refresh)
-              }
-            >
-              {deposit.pending ? "…" : "Approve"}
-            </button>
-          ) : (
-            <button
-              className="btn btn-primary whitespace-nowrap"
-              disabled={deposit.pending || !canDeposit || amountWei === 0n}
-              onClick={() =>
-                deposit
-                  .run({ address, abi: vaultAbi, functionName: "deposit", args: [amountWei, account!] })
-                  .then(() => {
-                    setAmount("");
-                    refresh();
-                  })
-              }
-            >
-              {deposit.pending ? "…" : "Deposit"}
-            </button>
-          )}
+          <button
+            className="btn btn-primary whitespace-nowrap"
+            disabled={deposit.pending || !canDeposit || amountWei === 0n || !account}
+            onClick={depositFlow}
+          >
+            {depositStage === "approve"
+              ? "Approving..."
+              : depositStage === "submit"
+                ? "Depositing..."
+                : "Deposit"}
+          </button>
         </div>
+        {needsApproval && canDeposit && amountWei > 0n && depositStage === "idle" && (
+          <p className="mt-1 text-xs text-muted">
+            First click sends a USDC approval, then the deposit is sent automatically.
+          </p>
+        )}
         {!canDeposit && (
           <p className="mt-1 text-xs text-muted">
             Deposits are closed — they are only open while the funding window is live ({phaseLabel(vault.phase)}).
