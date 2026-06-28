@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-static";
 
 export function GET() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`) ??
+    (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ??
+    "http://localhost:3000";
 
   const manifest = {
     accountAssociation: {
