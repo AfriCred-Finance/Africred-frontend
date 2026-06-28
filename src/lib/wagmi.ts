@@ -1,11 +1,12 @@
 import { http, createConfig } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
+import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { RPC_URL } from "./contracts";
 
 export const wagmiConfig = createConfig({
   chains: [baseSepolia],
-  connectors: [injected()],
+  connectors: [farcasterMiniApp(), injected()],
   transports: {
     [baseSepolia.id]: http(RPC_URL),
   },
