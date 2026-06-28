@@ -23,7 +23,7 @@ export function GET() {
       splashImageUrl: `${appUrl}/africred-logo.png`,
       splashBackgroundColor: "#F5F1E8",
       subtitle: "On-chain SME credit",
-      description: "Bridging Africa's $330B SME credit gap on-chain.",
+      description: "Credit vaults bridging the African SME credit gap on-chain.",
       primaryCategory: "finance",
       tags: ["defi", "yield", "africa", "credit"],
     },
