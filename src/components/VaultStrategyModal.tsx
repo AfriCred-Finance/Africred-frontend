@@ -430,7 +430,7 @@ function OverviewTab({ vault }: { vault: VaultData }) {
 
       <div>
         <div className="text-sm font-medium text-ink">Loan terms</div>
-        <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-5">
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
           {cells.map((c) => (
             <div key={c.label} className="min-w-0">
               <div className="text-[12px] text-ink2">{c.label}</div>

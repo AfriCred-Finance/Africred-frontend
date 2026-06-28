@@ -19,16 +19,32 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+const miniAppEmbed = {
+  version: "1",
+  imageUrl: `${APP_URL}/africred-logo.png`,
+  button: {
+    title: "Earn yield",
+    action: {
+      type: "launch_miniapp",
+      name: "AfriCred",
+      url: `${APP_URL}/vaults`,
+      splashImageUrl: `${APP_URL}/africred-logo.png`,
+      splashBackgroundColor: "#F5F1E8",
+    },
+  },
+};
+
 export const metadata: Metadata = {
   title: "AfriCred",
   description: "Credit vaults for SME lending.",
+  other: {
+    "fc:miniapp": JSON.stringify(miniAppEmbed),
+    "fc:frame": JSON.stringify(miniAppEmbed),
+  },
 };
 
-/**
- * Pre-paint theme bootstrap. Reads the persisted theme from localStorage and
- * applies `theme-light` or `theme-dark` on <html> before any CSS evaluates,
- * which avoids the flash that would happen if we waited for React to mount.
- */
 const themeBootstrap = `(function(){try{var s=localStorage.getItem('africred-theme');var t=s||'light';document.documentElement.classList.toggle('theme-light',t==='light');document.documentElement.classList.toggle('theme-dark',t==='dark');}catch(e){document.documentElement.classList.add('theme-light');}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
