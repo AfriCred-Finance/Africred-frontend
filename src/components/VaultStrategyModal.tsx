@@ -21,6 +21,7 @@ import {
 } from "@/lib/format";
 import { useRepaymentHistory, type RepaymentLog } from "@/lib/useRepaymentHistory";
 import { ipfsToHttp } from "@/lib/ipfs";
+import { SecondaryMarketPanel } from "./vault/SecondaryMarketPanel";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
@@ -126,8 +127,14 @@ function ActionsPane({
   const deposit = useAction(refetch);
   const redeem = useAction(refetch);
 
-  const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
+  type ActionTab = "deposit" | "withdraw" | "sell" | "buy";
+  const [tab, setTab] = useState<ActionTab>("deposit");
   const [amount, setAmount] = useState("");
+  // Secondary market is only meaningful during Custody: LPs are locked out of
+  // deposits and withdrawals but the loan is still live. We surface Sell/Buy
+  // in that window; other phases only show Deposit/Withdraw.
+  const showSecondary = vault.phase === "custody";
+  const isSecondary = tab === "sell" || tab === "buy";
 
   const { data: tokenData, refetch: refetchToken } = useReadContracts({
     allowFailure: false,
@@ -260,80 +267,98 @@ function ActionsPane({
         <Stat label="Position" value={`$${fmtUnits(positionAssets, vault.decimals)}`} />
       </div>
 
-      {/* Segmented tab toggle — pill containing two buttons */}
+      {/* Segmented tab toggle. Sell/Buy appear only during Custody (LPs are
+          otherwise locked in until withdrawals open). */}
       <div className="hairline flex rounded-md border bg-bg p-1">
-        <SegmentedTab active={isDeposit} onClick={() => { setTab("deposit"); setAmount(""); }}>
+        <SegmentedTab active={tab === "deposit"} onClick={() => { setTab("deposit"); setAmount(""); }}>
           Deposit
         </SegmentedTab>
-        <SegmentedTab active={!isDeposit} onClick={() => { setTab("withdraw"); setAmount(""); }}>
+        <SegmentedTab active={tab === "withdraw"} onClick={() => { setTab("withdraw"); setAmount(""); }}>
           Withdraw
         </SegmentedTab>
-      </div>
-
-      {/* Amount input — asset label on the left, number flex, rust MAX chip on the right */}
-      <div className="hairline flex items-center gap-3 rounded-md border bg-bg px-3 py-2.5">
-        <span className="font-mono text-[12px] text-ink2">USDC</span>
-        <input
-          className="num min-w-0 flex-1 bg-transparent font-mono text-base outline-none placeholder:text-ink3"
-          inputMode="decimal"
-          placeholder="0"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          disabled={!account || !enabled}
-        />
-        <button
-          type="button"
-          onClick={handleMax}
-          disabled={!account}
-          className="rounded-sm bg-accent px-2.5 py-1 font-mono text-[11px] font-medium tracking-wider text-bg transition-colors hover:bg-accent2 disabled:opacity-40"
-        >
-          MAX
-        </button>
-      </div>
-
-      {/* Status rows — key/value list */}
-      <div className="space-y-2 text-[12px]">
-        <StatusRow
-          label="USDC balance"
-          value={account && usdcBal !== undefined ? `${fmtUnits(usdcBal, vault.decimals)} USDC` : "—"}
-        />
-        <StatusRow label="Shares" value={fmtUnits(vault.shareBalance, vault.decimals)} />
-        <StatusRow label="Share price" value={`${vault.sharePrice.toFixed(4)} USDC`} />
-        {isDeposit ? (
-          <StatusRow
-            label="Deposit cap remaining"
-            value={`${fmtUnits(
-              vault.maxDeposits > vault.totalDeposits ? vault.maxDeposits - vault.totalDeposits : 0n,
-              vault.decimals,
-            )} USDC`}
-          />
-        ) : (
-          <StatusRow
-            label="Max withdrawable"
-            value={`${fmtUnits(positionAssets, vault.decimals)} USDC`}
-          />
+        {showSecondary && (
+          <>
+            <SegmentedTab active={tab === "sell"} onClick={() => setTab("sell")}>Sell</SegmentedTab>
+            <SegmentedTab active={tab === "buy"} onClick={() => setTab("buy")}>Buy</SegmentedTab>
+          </>
         )}
       </div>
 
-      {/* Primary action */}
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={!account || !enabled || pending || (enabled && amountWei === 0n)}
-        className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-md text-sm font-medium"
-      >
-        {pending ? "…" : buttonLabel}
-      </button>
-      {error && <p className="break-words text-[11px] text-negative">{error}</p>}
+      {isSecondary ? (
+        <SecondaryMarketPanel
+          side={tab === "sell" ? "sell" : "buy"}
+          vault={vault}
+          vaultAddress={address}
+          refetch={refetch}
+        />
+      ) : (
+        <>
+          {/* Amount input — asset label on the left, number flex, rust MAX chip on the right */}
+          <div className="hairline flex items-center gap-3 rounded-md border bg-bg px-3 py-2.5">
+            <span className="font-mono text-[12px] text-ink2">USDC</span>
+            <input
+              className="num min-w-0 flex-1 bg-transparent font-mono text-base outline-none placeholder:text-ink3"
+              inputMode="decimal"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              disabled={!account || !enabled}
+            />
+            <button
+              type="button"
+              onClick={handleMax}
+              disabled={!account}
+              className="rounded-sm bg-accent px-2.5 py-1 font-mono text-[11px] font-medium tracking-wider text-bg transition-colors hover:bg-accent2 disabled:opacity-40"
+            >
+              MAX
+            </button>
+          </div>
 
-      {/* Risk disclosure */}
-      <div className="hairline rounded-md border bg-bg/40 p-3">
-        <div className="text-[10px] uppercase tracking-wider text-ink3">Risk</div>
-        <p className="mt-1 text-[11px] leading-relaxed text-ink2">
-          Single-borrower credit risk. On default, LPs recover only what the originator records via a recovery — no
-          insurance fund. NAV is frozen for the duration of custody.
-        </p>
-      </div>
+          {/* Status rows — key/value list */}
+          <div className="space-y-2 text-[12px]">
+            <StatusRow
+              label="USDC balance"
+              value={account && usdcBal !== undefined ? `${fmtUnits(usdcBal, vault.decimals)} USDC` : "—"}
+            />
+            <StatusRow label="Shares" value={fmtUnits(vault.shareBalance, vault.decimals)} />
+            <StatusRow label="Share price" value={`${vault.sharePrice.toFixed(4)} USDC`} />
+            {isDeposit ? (
+              <StatusRow
+                label="Deposit cap remaining"
+                value={`${fmtUnits(
+                  vault.maxDeposits > vault.totalDeposits ? vault.maxDeposits - vault.totalDeposits : 0n,
+                  vault.decimals,
+                )} USDC`}
+              />
+            ) : (
+              <StatusRow
+                label="Max withdrawable"
+                value={`${fmtUnits(positionAssets, vault.decimals)} USDC`}
+              />
+            )}
+          </div>
+
+          {/* Primary action */}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!account || !enabled || pending || (enabled && amountWei === 0n)}
+            className="btn-accent inline-flex h-11 w-full items-center justify-center rounded-md text-sm font-medium"
+          >
+            {pending ? "…" : buttonLabel}
+          </button>
+          {error && <p className="break-words text-[11px] text-negative">{error}</p>}
+
+          {/* Risk disclosure */}
+          <div className="hairline rounded-md border bg-bg/40 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-ink3">Risk</div>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink2">
+              Single-borrower credit risk. On default, LPs recover only what the originator records via a recovery — no
+              insurance fund. NAV is frozen for the duration of custody.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
