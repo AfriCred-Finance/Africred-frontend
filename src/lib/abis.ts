@@ -316,3 +316,95 @@ export const vaultAbi = [
     outputs: [],
   },
 ] as const;
+
+// SharesEscrow — Base-side settlement layer for the private secondary market.
+// Matching itself lives on Secret Network; this contract sees only settled trades.
+export const sharesEscrowAbi = [
+  {
+    type: "function",
+    name: "gateway",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "sharesLocked",
+    stateMutability: "view",
+    inputs: [
+      { name: "vault", type: "address" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "usdcLocked",
+    stateMutability: "view",
+    inputs: [
+      { name: "vault", type: "address" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "settledMatches",
+    stateMutability: "view",
+    inputs: [{ name: "matchId", type: "bytes32" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "lockShares",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "vault", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "lockUsdc",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "vault", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "releaseShares",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "vault", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "releaseUsdc",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "vault", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "event",
+    name: "Settled",
+    inputs: [
+      { name: "matchId", type: "bytes32", indexed: true },
+      { name: "seller", type: "address", indexed: true },
+      { name: "buyer", type: "address", indexed: true },
+      { name: "vault", type: "address", indexed: false },
+      { name: "shares", type: "uint256", indexed: false },
+      { name: "usdcAmount", type: "uint256", indexed: false },
+    ],
+    anonymous: false,
+  },
+] as const;

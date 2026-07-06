@@ -8,6 +8,13 @@ export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "https://sepolia.base.
 export const FACTORY_ADDRESS = env(process.env.NEXT_PUBLIC_FACTORY_ADDRESS);
 export const ROUTER_ADDRESS = env(process.env.NEXT_PUBLIC_ROUTER_ADDRESS);
 export const USDC_ADDRESS = env(process.env.NEXT_PUBLIC_USDC_ADDRESS);
+export const SHARES_ESCROW_ADDRESS = env(process.env.NEXT_PUBLIC_SHARES_ESCROW_ADDRESS);
+
+// ---- Secret Network side of the private secondary market.
+export const SECRET_MATCHING_ADDR = process.env.NEXT_PUBLIC_SECRET_MATCHING_ADDR ?? "";
+export const SECRET_MATCHING_HASH = process.env.NEXT_PUBLIC_SECRET_MATCHING_HASH ?? "";
+export const SECRET_LCD = process.env.NEXT_PUBLIC_SECRET_LCD ?? "https://pulsar.lcd.secretnodes.com";
+export const SECRET_CHAIN_ID = process.env.NEXT_PUBLIC_SECRET_CHAIN_ID ?? "pulsar-3";
 
 export const isConfigured = Boolean(FACTORY_ADDRESS && USDC_ADDRESS);
 
