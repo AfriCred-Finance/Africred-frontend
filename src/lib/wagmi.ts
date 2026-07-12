@@ -1,14 +1,17 @@
 import { http, createConfig } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { base, baseSepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
-import { RPC_URL } from "./contracts";
+import { MAINNET, SEPOLIA } from "./contracts";
 
+// Base mainnet is the default; Base Sepolia stays available so we can keep
+// running the existing testnet flows during launch.
 export const wagmiConfig = createConfig({
-  chains: [baseSepolia],
+  chains: [base, baseSepolia],
   connectors: [farcasterMiniApp(), injected()],
   transports: {
-    [baseSepolia.id]: http(RPC_URL),
+    [base.id]: http(MAINNET.rpc),
+    [baseSepolia.id]: http(SEPOLIA.rpc),
   },
   ssr: true,
 });

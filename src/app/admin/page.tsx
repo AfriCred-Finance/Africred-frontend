@@ -2,13 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useChainId, useReadContract, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits, isAddress, keccak256, toBytes, type Address } from "viem";
 import { erc20Abi, factoryAbi } from "@/lib/abis";
-import { FACTORY_ADDRESS, LZ_ENDPOINT, EXPLORER } from "@/lib/contracts";
-
-const CHAIN_ID = baseSepolia.id;
+import { LZ_ENDPOINT, useChainAddresses } from "@/lib/contracts";
 import { wagmiConfig } from "@/lib/wagmi";
 import { ConfigBanner } from "@/components/ConfigBanner";
 import { VaultCard } from "@/components/VaultCard";
@@ -370,6 +367,7 @@ function CreateLoan({
   const writeContract = useWriteContract();
   const connectedChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
+  const { factory: FACTORY_ADDRESS, chainId: CHAIN_ID, chainName: CHAIN_NAME, explorer: EXPLORER } = useChainAddresses();
   const wrongChain = Boolean(account) && connectedChainId !== CHAIN_ID;
   const [poolType, setPoolType] = useState<"simple" | "tranched">("simple");
 
@@ -656,7 +654,7 @@ function CreateLoan({
       {wrongChain && (
         <div className="card flex items-center justify-between border-negative/30 p-4 text-sm">
           <span className="text-negative">
-            Wrong network. Connect to Base Sepolia (chain id {CHAIN_ID}) to create a vault.
+            Wrong network. Connect to {CHAIN_NAME} (chain id {CHAIN_ID}) to create a vault.
           </span>
           <button
             type="button"
@@ -1046,6 +1044,7 @@ function StatusStrip({
   onRetry: () => void;
   onManage: () => void;
 }) {
+  const { explorer: EXPLORER } = useChainAddresses();
   const done = txStatus === "success";
   return (
     <div className="card border-line bg-bg2/60 p-4">
@@ -1194,6 +1193,7 @@ function StepDot({ n, status }: { n: number; status: StepStatus }) {
 // --------------------------------------------------------------------------------------------
 
 function WhitelistAssetLink({ onWhitelisted, disabled }: { onWhitelisted: () => void; disabled?: boolean }) {
+  const { factory: FACTORY_ADDRESS } = useChainAddresses();
   const [open, setOpen] = useState(false);
   const [addr, setAddr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1265,6 +1265,7 @@ function WhitelistAssetLink({ onWhitelisted, disabled }: { onWhitelisted: () => 
 // --------------------------------------------------------------------------------------------
 
 function ManageLoans({ highlight }: { highlight: Address | null }) {
+  const { factory: FACTORY_ADDRESS } = useChainAddresses();
   const { data: vaults, isLoading } = useReadContract({
     address: FACTORY_ADDRESS,
     abi: factoryAbi,
@@ -1273,7 +1274,7 @@ function ManageLoans({ highlight }: { highlight: Address | null }) {
   });
   const list = (vaults as Address[] | undefined) ?? [];
 
-  if (!FACTORY_ADDRESS) return <p className="text-sm text-muted">Configure the factory address first.</p>;
+  if (!FACTORY_ADDRESS) return <p className="text-sm text-muted">Factory not deployed on this chain — switch networks or set env vars.</p>;
   if (isLoading) return <p className="text-sm text-muted">Loading vaults...</p>;
   if (list.length === 0)
     return (

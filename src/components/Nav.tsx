@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ConnectButton } from "./ConnectButton";
 import { ThemeToggle } from "./ThemeToggle";
+import { ChainSwitcher } from "./ChainSwitcher";
 import { openDisclaimer } from "@/lib/disclaimer";
 
 export function Nav() {
@@ -86,7 +87,10 @@ export function Nav() {
               Earn yield
             </button>
           ) : (
-            <ConnectButton />
+            <>
+              <ChainSwitcher />
+              <ConnectButton />
+            </>
           )}
         </div>
       </div>

@@ -7,7 +7,7 @@ import { type Address, isAddress } from "viem";
 import { useVault } from "@/lib/useVault";
 import { useAction } from "@/lib/useAction";
 import { erc20Abi, vaultAbi } from "@/lib/abis";
-import { EXPLORER } from "@/lib/contracts";
+import { useChainAddresses } from "@/lib/contracts";
 import { ipfsToHttp } from "@/lib/ipfs";
 import { fmtUnits, fmtDate, fmtBps, fmtLoanStatus, fmtRepayment, phaseLabel, shortAddr, isOverdue } from "@/lib/format";
 import { Stat, PhaseBadge } from "@/components/Stat";
@@ -26,6 +26,7 @@ export default function VaultPage() {
   const address = (params.address as string)?.toLowerCase() as Address;
   const { address: account } = useAccount();
   const { vault, refetch } = useVault(isAddress(address) ? address : undefined, account);
+  const { explorer } = useChainAddresses();
 
   if (!isAddress(address)) return <p className="text-sm text-muted">Invalid vault address.</p>;
   if (!vault) return <p className="text-sm text-muted">Loading vault…</p>;
@@ -43,7 +44,7 @@ export default function VaultPage() {
             <PhaseBadge phase={phaseLabel(vault.phase)} />
           </div>
           <a
-            href={`${EXPLORER}/address/${address}`}
+            href={`${explorer}/address/${address}`}
             target="_blank"
             rel="noreferrer"
             className="mt-1 inline-block font-mono text-xs text-muted hover:text-ink"

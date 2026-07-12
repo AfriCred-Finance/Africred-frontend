@@ -7,7 +7,7 @@ import { parseUnits, type Address } from "viem";
 import { useVault } from "@/lib/useVault";
 import { useAction } from "@/lib/useAction";
 import { erc20Abi, vaultAbi } from "@/lib/abis";
-import { EXPLORER } from "@/lib/contracts";
+import { useChainAddresses } from "@/lib/contracts";
 import {
   fmtAPY,
   fmtBps,
@@ -124,6 +124,7 @@ function ActionsPane({
   refetch: () => void;
 }) {
   const { address: account } = useAccount();
+  const { explorer } = useChainAddresses();
   const deposit = useAction(refetch);
   const redeem = useAction(refetch);
 
@@ -253,7 +254,7 @@ function ActionsPane({
             )}
           </div>
           <a
-            href={`${EXPLORER}/address/${address}`}
+            href={`${explorer}/address/${address}`}
             target="_blank"
             rel="noreferrer"
             className="mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] text-ink3 transition-colors hover:text-accent"
@@ -582,6 +583,7 @@ function RepaymentTimeline({
   registry: Address;
   loanId: bigint;
 }) {
+  const { explorer } = useChainAddresses();
   // Total number of expected payments by repayment type:
   //   bullet (0): one final payment
   //   InterestThenPrincipal (1): N interest installments + 1 principal payment
@@ -692,7 +694,7 @@ function RepaymentTimeline({
                   {m.txHash && (
                     <a
                       className="link-accent !text-[10px] !no-underline hover:!underline"
-                      href={`${EXPLORER}/tx/${m.txHash}`}
+                      href={`${explorer}/tx/${m.txHash}`}
                       target="_blank"
                       rel="noreferrer"
                       title={m.txHash}
@@ -773,12 +775,13 @@ function SimpleRow({ label, value }: { label: string; value: string }) {
 }
 
 function AddressRow({ label, value }: { label: string; value: Address }) {
+  const { explorer } = useChainAddresses();
   return (
     <tr>
       <td className="px-3 py-2 text-ink3">{label}</td>
       <td className="px-3 py-2 text-right">
         <a
-          href={`${EXPLORER}/address/${value}`}
+          href={`${explorer}/address/${value}`}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1.5 text-ink transition-colors hover:text-accent"
