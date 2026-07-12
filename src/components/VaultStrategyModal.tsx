@@ -130,11 +130,21 @@ function ActionsPane({
   type ActionTab = "deposit" | "withdraw" | "sell" | "buy";
   const [tab, setTab] = useState<ActionTab>("deposit");
   const [amount, setAmount] = useState("");
-  // Secondary market is only meaningful during Custody: LPs are locked out of
-  // deposits and withdrawals but the loan is still live. We surface Sell/Buy
-  // in that window; other phases only show Deposit/Withdraw.
-  const showSecondary = vault.phase === "custody";
   const isSecondary = tab === "sell" || tab === "buy";
+  // Secondary-market toggle sits below the primary CTA and only shows when the
+  // primary market has closed either action. In Funding this reads as "want to
+  // sell early?"; in Custody as "want in/out during the loan?"; in
+  // OpenWithdrawal as "want to buy back exposure?".
+  const showSecondaryToggle = !vault.depositsOpen || !vault.withdrawalsOpen;
+
+  function toggleSecondary() {
+    setAmount("");
+    if (isSecondary) {
+      setTab(tab === "buy" ? "deposit" : "withdraw");
+    } else {
+      setTab(tab === "deposit" ? "buy" : "sell");
+    }
+  }
 
   const { data: tokenData, refetch: refetchToken } = useReadContracts({
     allowFailure: false,
@@ -267,21 +277,21 @@ function ActionsPane({
         <Stat label="Position" value={`$${fmtUnits(positionAssets, vault.decimals)}`} />
       </div>
 
-      {/* Segmented tab toggle. Sell/Buy appear only during Custody (LPs are
-          otherwise locked in until withdrawals open). */}
+      {/* Segmented tab toggle. Labels flip to Buy / Sell when the user opens
+          the secondary market via the toggle below the primary CTA. */}
       <div className="hairline flex rounded-md border bg-bg p-1">
-        <SegmentedTab active={tab === "deposit"} onClick={() => { setTab("deposit"); setAmount(""); }}>
-          Deposit
+        <SegmentedTab
+          active={tab === "deposit" || tab === "buy"}
+          onClick={() => { setTab(isSecondary ? "buy" : "deposit"); setAmount(""); }}
+        >
+          {isSecondary ? "Buy" : "Deposit"}
         </SegmentedTab>
-        <SegmentedTab active={tab === "withdraw"} onClick={() => { setTab("withdraw"); setAmount(""); }}>
-          Withdraw
+        <SegmentedTab
+          active={tab === "withdraw" || tab === "sell"}
+          onClick={() => { setTab(isSecondary ? "sell" : "withdraw"); setAmount(""); }}
+        >
+          {isSecondary ? "Sell" : "Withdraw"}
         </SegmentedTab>
-        {showSecondary && (
-          <>
-            <SegmentedTab active={tab === "sell"} onClick={() => setTab("sell")}>Sell</SegmentedTab>
-            <SegmentedTab active={tab === "buy"} onClick={() => setTab("buy")}>Buy</SegmentedTab>
-          </>
-        )}
       </div>
 
       {isSecondary ? (
@@ -349,6 +359,16 @@ function ActionsPane({
           </button>
           {error && <p className="break-words text-[11px] text-negative">{error}</p>}
 
+          {showSecondaryToggle && (
+            <button
+              type="button"
+              onClick={toggleSecondary}
+              className="hairline w-full rounded-md border border-dashed border-rule2 py-2.5 text-[12px] font-medium text-ink2 transition-colors hover:border-accent hover:text-accent"
+            >
+              {isDeposit ? "Buy on the secondary market instead →" : "Sell on the secondary market instead →"}
+            </button>
+          )}
+
           {/* Risk disclosure */}
           <div className="hairline rounded-md border bg-bg/40 p-3">
             <div className="text-[10px] uppercase tracking-wider text-ink3">Risk</div>
@@ -358,6 +378,16 @@ function ActionsPane({
             </p>
           </div>
         </>
+      )}
+
+      {isSecondary && showSecondaryToggle && (
+        <button
+          type="button"
+          onClick={toggleSecondary}
+          className="hairline w-full rounded-md border border-dashed border-rule2 py-2.5 text-[12px] font-medium text-ink2 transition-colors hover:border-accent hover:text-accent"
+        >
+          ← Back to Deposit / Withdraw
+        </button>
       )}
     </div>
   );
