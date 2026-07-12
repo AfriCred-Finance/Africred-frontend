@@ -1,0 +1,68 @@
+%% AfriCred system architecture (Mermaid source)
+%% Render with: https://mermaid.live  or  `mmdc -i architecture.mmd -o architecture.png`
+flowchart TB
+
+  %% =========================================================
+  subgraph Actors["Actors"]
+    direction LR
+    Admin["Admin<br/>factory owner"]
+    Allocator["Allocator"]
+    LP["LP"]
+    Borrower["Borrower (SME)"]
+  end
+
+  %% =========================================================
+  subgraph Frontend["Frontend  ·  Next.js 14 on Vercel"]
+    direction TB
+    Pages["Pages<br/>/ · /vaults · /vault/[a] · /admin · /borrow"]
+    Wagmi["wagmi v2 + viem<br/>injected wallet, auto-switch Base Sepolia<br/>one-click approve+deposit / approve+repay"]
+    API["API routes (serverless)<br/>/api/ipfs · /api/ipfs/list · /api/loan-request"]
+  end
+
+  Pinata[("Pinata<br/>IPFS pinning<br/>(PINATA_JWT)")]
+
+  %% =========================================================
+  subgraph Chain["On-chain  ·  Base Sepolia (84532)"]
+    direction TB
+
+    Factory["AfriCredFactory<br/>Owner-only registry &amp; deployer<br/>createLoanVault · isVault[] · whitelistedAssets[]"]
+    LoanNFT["LoanRegistryNFT<br/>ERC721, one token per loan<br/>terms · schedule · status · dossier URI"]
+    Deployer["VaultDeployer<br/>Stateless bytecode carrier<br/>(keeps Factory under 24,576 B)"]
+    Vault["AfriCredVault<br/>ERC4626 + LayerZero OFTCore<br/>Closed → Funding → Custody → OpenWithdrawal<br/>Frozen NAV during custody · optional tranching · optional whitelist"]
+    Router["AfriCredRouter<br/>Single LP entry point<br/>deposit / redeem · zapAndDeposit"]
+    USDC[("USDC asset<br/>MockUSDC on testnet")]
+    LZ[("LayerZero EndpointV2<br/>lock / unlock OFT")]
+    Adapter["IDexAdapter (pluggable)"]
+  end
+
+  %% Actor → Frontend
+  Admin --> Pages
+  Allocator --> Pages
+  LP --> Pages
+  Borrower --> Pages
+
+  %% Frontend wiring
+  Pages --> Wagmi
+  Pages --> API
+  API -->|pin / list| Pinata
+
+  %% Frontend → On-chain
+  Wagmi -->|writeContract| Factory
+  Wagmi -->|writeContract| Vault
+  Wagmi -->|writeContract| Router
+
+  %% On-chain topology
+  Factory -->|mints| LoanNFT
+  Factory -->|delegates| Deployer
+  Deployer -->|new| Vault
+  Vault -.->|owner defers to NFT holder| LoanNFT
+  Vault -->|pulls / holds| USDC
+  Vault -.->|lock / unlock shares| LZ
+  Router -->|validates against| Factory
+  Router -->|deposit / redeem| Vault
+  Router -->|zap| Adapter
+
+  classDef accent fill:#FFFFFF,stroke:#B85733,stroke-width:1.4px,color:#14110D;
+  classDef card   fill:#FFFFFF,stroke:#DCD6C7,stroke-width:1px,color:#14110D;
+  class Factory,Vault accent;
+  class LoanNFT,Deployer,Router,USDC,LZ,Adapter,Pages,Wagmi,API card;

@@ -1,0 +1,216 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 940" font-family="Inter, system-ui, -apple-system, sans-serif" width="1280" height="940">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#14110D"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#B85733"/>
+    </marker>
+    <style>
+      .card     { fill: #FFFFFF; stroke: #DCD6C7; stroke-width: 1; }
+      .group    { fill: #FAF7EE; stroke: #DCD6C7; stroke-width: 1; }
+      .accent   { fill: #FFFFFF; stroke: #B85733; stroke-width: 1.4; }
+      .actor    { fill: #14110D; }
+      .title    { fill: #14110D; font-size: 14px; font-weight: 600; }
+      .sub      { fill: #5A5448; font-size: 11px; }
+      .mini     { fill: #8A8474; font-size: 10px; }
+      .eyebrow  { fill: #8A8474; font-size: 10px; letter-spacing: 1.8px; font-family: ui-monospace, "JetBrains Mono", monospace; text-transform: uppercase; }
+      .actor-t  { fill: #F5F1E8; font-size: 13px; font-weight: 600; }
+      .actor-s  { fill: #DCD6C7; font-size: 10px; }
+      .edge     { stroke: #5A5448; stroke-width: 1.2; fill: none; }
+      .edge-acc { stroke: #B85733; stroke-width: 1.4; fill: none; }
+      .label    { fill: #5A5448; font-size: 10px; font-family: ui-monospace, "JetBrains Mono", monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="940" fill="#F5F1E8"/>
+
+  <!-- ============ Title ============ -->
+  <text x="40" y="50" class="title" font-size="22">AfriCred — System Architecture</text>
+  <text x="40" y="72" class="sub" font-size="12">On-chain credit vaults for African SME finance. Base Sepolia testnet.</text>
+
+  <!-- ============ Row 1 : Actors ============ -->
+  <text x="40" y="115" class="eyebrow">// Actors</text>
+
+  <rect x="40"  y="128" width="280" height="60" rx="6" class="actor"/>
+  <text x="60"  y="155" class="actor-t">Admin</text>
+  <text x="60"  y="173" class="actor-s">Factory owner. Originates loans, holds loan NFT, services repayments.</text>
+
+  <rect x="340" y="128" width="280" height="60" rx="6" class="actor"/>
+  <text x="360" y="155" class="actor-t">Allocator</text>
+  <text x="360" y="173" class="actor-s">Pulls custody, deploys to SME off-chain, returns principal + interest.</text>
+
+  <rect x="640" y="128" width="280" height="60" rx="6" class="actor"/>
+  <text x="660" y="155" class="actor-t">LP</text>
+  <text x="660" y="173" class="actor-s">Deposits USDC during funding, redeems shares after settlement.</text>
+
+  <rect x="940" y="128" width="300" height="60" rx="6" class="actor"/>
+  <text x="960" y="155" class="actor-t">Borrower (SME)</text>
+  <text x="960" y="173" class="actor-s">Submits loan request, repays per schedule off-chain.</text>
+
+  <!-- ============ Row 2 : Frontend + External services ============ -->
+  <text x="40" y="230" class="eyebrow">// Frontend  ·  Next.js 14 on Vercel</text>
+
+  <rect x="40" y="244" width="900" height="220" rx="6" class="group"/>
+  <text x="60" y="270" class="title">af-frontend</text>
+  <text x="60" y="286" class="sub">App Router · React 18 · TypeScript · Tailwind · wagmi v2 + viem · TanStack Query</text>
+
+  <!-- Pages -->
+  <rect x="60" y="302" width="860" height="48" rx="4" class="card"/>
+  <text x="76" y="324" class="title" font-size="13">Pages</text>
+  <text x="76" y="340" class="sub">/  ·  /vaults  ·  /vault/[address]  ·  /admin  ·  /borrow</text>
+
+  <!-- wagmi -->
+  <rect x="60" y="362" width="420" height="86" rx="4" class="card"/>
+  <text x="76" y="384" class="title" font-size="13">wagmi v2 + viem</text>
+  <text x="76" y="402" class="sub">Injected connector (MetaMask, Rabby, Phantom)</text>
+  <text x="76" y="418" class="sub">Auto-switches to Base Sepolia on connect</text>
+  <text x="76" y="434" class="sub">One-click Approve+Deposit / Approve+Repay flows</text>
+
+  <!-- API routes -->
+  <rect x="500" y="362" width="420" height="86" rx="4" class="card"/>
+  <text x="516" y="384" class="title" font-size="13">API routes (serverless)</text>
+  <text x="516" y="402" class="sub">/api/ipfs · pin dossier files (wrapWithDirectory)</text>
+  <text x="516" y="418" class="sub">/api/ipfs/list · enumerate pinned files</text>
+  <text x="516" y="434" class="sub">/api/loan-request · pin borrower JSON</text>
+
+  <!-- Pinata sidecar -->
+  <rect x="970" y="244" width="270" height="220" rx="6" class="group"/>
+  <text x="990" y="270" class="title">Pinata</text>
+  <text x="990" y="286" class="sub">IPFS pinning service</text>
+
+  <rect x="990" y="302" width="230" height="146" rx="4" class="card"/>
+  <text x="1006" y="324" class="title" font-size="13">PINATA_JWT (server-only)</text>
+  <text x="1006" y="344" class="sub">Dossier PDFs pinned under</text>
+  <text x="1006" y="360" class="sub">CID/dossier/&lt;original-name&gt;</text>
+  <text x="1006" y="384" class="sub">Borrower JSON records via</text>
+  <text x="1006" y="400" class="sub">pinJSONToIPFS</text>
+  <text x="1006" y="430" class="eyebrow">CID returned to UI</text>
+
+  <!-- ============ Row 3 : Wallet / RPC bridge band ============ -->
+  <line x1="220" y1="490" x2="220" y2="540" class="edge-acc" marker-end="url(#arrow-accent)"/>
+  <text x="232" y="518" class="label">writeContract</text>
+
+  <line x1="720" y1="490" x2="720" y2="540" class="edge-acc" marker-end="url(#arrow-accent)"/>
+  <text x="732" y="518" class="label">readContract / poll</text>
+
+  <!-- ============ Row 4 : On-chain ============ -->
+  <text x="40" y="560" class="eyebrow">// On-chain  ·  af-contracts on Base Sepolia (chain id 84532)</text>
+
+  <rect x="40" y="572" width="1200" height="340" rx="6" class="group"/>
+
+  <!-- Factory -->
+  <rect x="60" y="600" width="260" height="100" rx="4" class="accent"/>
+  <text x="76" y="624" class="title">AfriCredFactory</text>
+  <text x="76" y="642" class="sub">Owner-only registry &amp; deployer</text>
+  <text x="76" y="660" class="sub">createLoanVault(loanParams, vaultParams)</text>
+  <text x="76" y="676" class="sub">isVault[] · whitelistedAssets[]</text>
+  <text x="76" y="694" class="mini">Ownable (multisig in prod)</text>
+
+  <!-- LoanRegistryNFT -->
+  <rect x="360" y="600" width="260" height="100" rx="4" class="card"/>
+  <text x="376" y="624" class="title">LoanRegistryNFT</text>
+  <text x="376" y="642" class="sub">ERC721, one token per loan</text>
+  <text x="376" y="660" class="sub">terms, schedule, status, dossier URI</text>
+  <text x="376" y="678" class="sub">restructureLoan · setStatus</text>
+  <text x="376" y="694" class="mini">NFT holder = vault admin (via owner override)</text>
+
+  <!-- VaultDeployer -->
+  <rect x="660" y="600" width="260" height="100" rx="4" class="card"/>
+  <text x="676" y="624" class="title">VaultDeployer</text>
+  <text x="676" y="642" class="sub">Stateless creation-bytecode carrier</text>
+  <text x="676" y="660" class="sub">Keeps Factory under 24,576-byte limit</text>
+  <text x="676" y="694" class="mini">deploy(args) → new AfriCredVault</text>
+
+  <!-- AfriCredRouter -->
+  <rect x="60" y="730" width="260" height="160" rx="4" class="card"/>
+  <text x="76" y="754" class="title">AfriCredRouter</text>
+  <text x="76" y="772" class="sub">Single LP entry point</text>
+  <text x="76" y="790" class="sub">deposit / redeem</text>
+  <text x="76" y="808" class="sub">zapAndDeposit → IDexAdapter</text>
+  <text x="76" y="828" class="sub">Validates target via factory.isVault[]</text>
+  <text x="76" y="852" class="mini">Holds no user funds between calls</text>
+  <text x="76" y="876" class="mini">ReentrancyGuard</text>
+
+  <!-- AfriCredVault (prominent) -->
+  <rect x="360" y="730" width="260" height="160" rx="4" class="accent"/>
+  <text x="376" y="754" class="title">AfriCredVault</text>
+  <text x="376" y="772" class="sub">ERC4626 + LayerZero OFTCore</text>
+  <text x="376" y="794" class="sub">Lifecycle: Closed → Funding → Custody</text>
+  <text x="376" y="810" class="sub">             → OpenWithdrawal</text>
+  <text x="376" y="830" class="sub">Frozen NAV while custodied</text>
+  <text x="376" y="848" class="sub">Optional senior/junior tranche buffer</text>
+  <text x="376" y="864" class="sub">Optional depositor whitelist</text>
+  <text x="376" y="880" class="mini">owner() defers to loan NFT holder</text>
+
+  <!-- USDC -->
+  <rect x="660" y="730" width="260" height="100" rx="4" class="card"/>
+  <text x="676" y="754" class="title">USDC (asset)</text>
+  <text x="676" y="772" class="sub">MockUSDC on testnet, Circle USDC on mainnet</text>
+  <text x="676" y="790" class="sub">Per-chain address in HelperConfig</text>
+  <text x="676" y="816" class="mini">Faucet-able for demo flows</text>
+
+  <!-- LayerZero -->
+  <rect x="960" y="600" width="260" height="100" rx="4" class="card"/>
+  <text x="976" y="624" class="title">LayerZero EndpointV2</text>
+  <text x="976" y="642" class="sub">Shared testnet endpoint</text>
+  <text x="976" y="660" class="sub">Lock / unlock OFT model</text>
+  <text x="976" y="678" class="sub">(home-chain totalSupply preserved)</text>
+  <text x="976" y="694" class="mini">Peers off by default until audit</text>
+
+  <!-- IDexAdapter -->
+  <rect x="960" y="730" width="260" height="100" rx="4" class="card"/>
+  <text x="976" y="754" class="title">IDexAdapter (interface)</text>
+  <text x="976" y="772" class="sub">Pluggable swap router</text>
+  <text x="976" y="790" class="sub">Zaps non-USDC stable into USDC</text>
+  <text x="976" y="816" class="mini">Wired through AfriCredRouter</text>
+
+  <!-- ====== Edges within on-chain block ====== -->
+
+  <!-- Factory ─mints─► LoanRegistryNFT -->
+  <line x1="320" y1="650" x2="356" y2="650" class="edge" marker-end="url(#arrow)"/>
+  <text x="328" y="642" class="label">mints</text>
+
+  <!-- Factory ─delegates─► VaultDeployer (via LoanRegistryNFT row) -->
+  <path d="M 320 670 C 480 670 500 670 656 670" class="edge" fill="none" marker-end="url(#arrow)"/>
+  <text x="488" y="664" class="label">delegates</text>
+
+  <!-- VaultDeployer ─new─► AfriCredVault -->
+  <line x1="700" y1="700" x2="540" y2="730" class="edge" marker-end="url(#arrow)"/>
+  <text x="586" y="724" class="label">new</text>
+
+  <!-- AfriCredVault ─owner defers─► LoanRegistryNFT -->
+  <line x1="490" y1="730" x2="490" y2="700" class="edge-acc" marker-end="url(#arrow-accent)"/>
+  <text x="498" y="722" class="label">owner()</text>
+
+  <!-- Router ─validates─► Factory -->
+  <path d="M 190 730 C 190 720 190 716 190 700" class="edge" fill="none" marker-end="url(#arrow)"/>
+  <text x="58" y="724" class="label">validates</text>
+
+  <!-- Router ─deposit/redeem─► Vault -->
+  <line x1="320" y1="810" x2="356" y2="810" class="edge-acc" marker-end="url(#arrow-accent)"/>
+  <text x="326" y="802" class="label">deposit / redeem</text>
+
+  <!-- Vault ─asset─► USDC -->
+  <line x1="620" y1="780" x2="656" y2="780" class="edge" marker-end="url(#arrow)"/>
+  <text x="624" y="772" class="label">pulls / holds</text>
+
+  <!-- Vault ─OFT─► LayerZero -->
+  <path d="M 620 740 C 720 740 800 700 956 660" class="edge" fill="none" marker-end="url(#arrow)"/>
+  <text x="800" y="700" class="label">OFT bridge</text>
+
+  <!-- Router ─zap─► IDexAdapter -->
+  <path d="M 320 850 C 600 850 700 800 956 780" class="edge" fill="none" marker-end="url(#arrow)"/>
+  <text x="640" y="836" class="label">zap</text>
+
+  <!-- ====== Cross-band edges (actors → frontend) ====== -->
+  <line x1="180" y1="188" x2="180" y2="244" class="edge" marker-end="url(#arrow)"/>
+  <line x1="480" y1="188" x2="480" y2="244" class="edge" marker-end="url(#arrow)"/>
+  <line x1="780" y1="188" x2="780" y2="244" class="edge" marker-end="url(#arrow)"/>
+  <line x1="1090" y1="188" x2="1090" y2="244" class="edge" marker-end="url(#arrow)"/>
+
+  <!-- API ─→ Pinata -->
+  <line x1="920" y1="405" x2="990" y2="405" class="edge" marker-end="url(#arrow)"/>
+  <text x="924" y="396" class="label">pin / list</text>
+</svg>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatUnits, parseUnits, type Address } from "viem";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { erc20Abi, sharesEscrowAbi } from "@/lib/abis";
-import { SHARES_ESCROW_ADDRESS } from "@/lib/contracts";
+import { useChainAddresses } from "@/lib/contracts";
 import { useAction } from "@/lib/useAction";
 import { useSecretDepth } from "@/lib/useSecretDepth";
 
@@ -46,7 +46,8 @@ export function SecondaryMarketPanel({
   refetch: () => void;
 }) {
   const { address: account } = useAccount();
-  const escrowConfigured = Boolean(SHARES_ESCROW_ADDRESS);
+  const { sharesEscrow } = useChainAddresses();
+  const escrowConfigured = Boolean(sharesEscrow);
   const depth = useSecretDepth(vaultAddress);
 
   const [amount, setAmount] = useState("");
@@ -73,30 +74,30 @@ export function SecondaryMarketPanel({
     address: spendToken,
     abi: erc20Abi,
     functionName: "allowance",
-    args: [account ?? ZERO, SHARES_ESCROW_ADDRESS ?? ZERO],
-    query: { enabled: Boolean(account && SHARES_ESCROW_ADDRESS), refetchInterval: 15_000 },
+    args: [account ?? ZERO, sharesEscrow ?? ZERO],
+    query: { enabled: Boolean(account && sharesEscrow), refetchInterval: 15_000 },
   });
   const allowance = (allowanceData as bigint | undefined) ?? 0n;
 
   const { data: escrowBalances, refetch: refetchEscrow } = useReadContracts({
     allowFailure: false,
-    contracts: SHARES_ESCROW_ADDRESS
+    contracts: sharesEscrow
       ? [
           {
-            address: SHARES_ESCROW_ADDRESS,
+            address: sharesEscrow,
             abi: sharesEscrowAbi,
             functionName: "sharesLocked",
             args: [vaultAddress, account ?? ZERO],
           },
           {
-            address: SHARES_ESCROW_ADDRESS,
+            address: sharesEscrow,
             abi: sharesEscrowAbi,
             functionName: "usdcLocked",
             args: [vaultAddress, account ?? ZERO],
           },
         ]
       : [],
-    query: { enabled: Boolean(account && SHARES_ESCROW_ADDRESS), refetchInterval: 15_000 },
+    query: { enabled: Boolean(account && sharesEscrow), refetchInterval: 15_000 },
   });
   const [sharesLocked, usdcLocked] = (escrowBalances as [bigint, bigint] | undefined) ?? [0n, 0n];
 
@@ -117,7 +118,7 @@ export function SecondaryMarketPanel({
     depth.epochEndsAt !== undefined ? Math.max(0, depth.epochEndsAt - now) : undefined;
 
   async function handleSubmit() {
-    if (!account || !SHARES_ESCROW_ADDRESS) return;
+    if (!account || !sharesEscrow) return;
     if (spendAmount === 0n) return;
 
     if (needsApproval) {
@@ -125,7 +126,7 @@ export function SecondaryMarketPanel({
         address: spendToken,
         abi: erc20Abi,
         functionName: "approve",
-        args: [SHARES_ESCROW_ADDRESS, spendAmount],
+        args: [sharesEscrow, spendAmount],
       });
       refetchAllowance();
       return;
@@ -133,14 +134,14 @@ export function SecondaryMarketPanel({
 
     if (isSell) {
       await escrow.run({
-        address: SHARES_ESCROW_ADDRESS,
+        address: sharesEscrow,
         abi: sharesEscrowAbi,
         functionName: "lockShares",
         args: [vaultAddress, spendAmount],
       });
     } else {
       await escrow.run({
-        address: SHARES_ESCROW_ADDRESS,
+        address: sharesEscrow,
         abi: sharesEscrowAbi,
         functionName: "lockUsdc",
         args: [vaultAddress, spendAmount],
@@ -153,11 +154,11 @@ export function SecondaryMarketPanel({
   }
 
   async function handleRelease(kind: "shares" | "usdc") {
-    if (!account || !SHARES_ESCROW_ADDRESS) return;
+    if (!account || !sharesEscrow) return;
     const bal = kind === "shares" ? sharesLocked : usdcLocked;
     if (bal === 0n) return;
     await escrow.run({
-      address: SHARES_ESCROW_ADDRESS,
+      address: sharesEscrow,
       abi: sharesEscrowAbi,
       functionName: kind === "shares" ? "releaseShares" : "releaseUsdc",
       args: [vaultAddress, bal],

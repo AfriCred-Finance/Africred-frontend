@@ -7,7 +7,7 @@ import { useAccount } from "wagmi";
 import { useVault } from "@/lib/useVault";
 import { useDossierFiles } from "@/hooks/useDossierFiles";
 import { useHiddenVaults } from "@/lib/hiddenVaults";
-import { EXPLORER } from "@/lib/contracts";
+import { useChainAddresses } from "@/lib/contracts";
 import { fmtUnits, fmtBps, fmtRepayment, fmtLoanStatus, phaseLabel, shortAddr } from "@/lib/format";
 import { ipfsToHttp } from "@/lib/ipfs";
 import { PhaseBadge } from "./Stat";
@@ -74,6 +74,7 @@ export function VaultCard({
 }) {
   const { address: account } = useAccount();
   const { vault, refetch } = useVault(address, account);
+  const { explorer } = useChainAddresses();
   const [expanded, setExpanded] = useState(false);
   const { isHidden, toggle: toggleHidden } = useHiddenVaults();
   const hidden = isHidden(address);
@@ -107,7 +108,7 @@ export function VaultCard({
       </div>
 
       <a
-        href={`${EXPLORER}/address/${address}`}
+        href={`${explorer}/address/${address}`}
         target="_blank"
         rel="noreferrer"
         className="mt-1 inline-block font-mono text-xs text-muted hover:text-ink"

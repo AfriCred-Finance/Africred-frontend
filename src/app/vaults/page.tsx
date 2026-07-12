@@ -3,17 +3,18 @@
 import { useReadContract } from "wagmi";
 import type { Address } from "viem";
 import { factoryAbi } from "@/lib/abis";
-import { FACTORY_ADDRESS } from "@/lib/contracts";
+import { useChainAddresses } from "@/lib/contracts";
 import { useHiddenVaults } from "@/lib/hiddenVaults";
 import { VaultRow } from "@/components/VaultRow";
 import { ConfigBanner } from "@/components/ConfigBanner";
 
 export default function VaultsPage() {
+  const { factory, chainName } = useChainAddresses();
   const { data: vaults, isLoading } = useReadContract({
-    address: FACTORY_ADDRESS,
+    address: factory,
     abi: factoryAbi,
     functionName: "allVaults",
-    query: { enabled: Boolean(FACTORY_ADDRESS), refetchInterval: 30000 },
+    query: { enabled: Boolean(factory), refetchInterval: 30000 },
   });
 
   const { isHidden } = useHiddenVaults();
@@ -40,7 +41,7 @@ export default function VaultsPage() {
               </div>
               <div>
                 <div className="eyebrow !text-[10px]">Network</div>
-                <div className="num mt-1 text-2xl">Base Sepolia</div>
+                <div className="num mt-1 text-2xl">{chainName}</div>
               </div>
             </div>
           </div>
@@ -65,7 +66,7 @@ export default function VaultsPage() {
             </div>
 
             {/* Rows */}
-            {!FACTORY_ADDRESS ? (
+            {!factory ? (
               <div className="px-6 py-16 text-center text-sm text-ink2">
                 Configure the factory address to view vaults.
               </div>
