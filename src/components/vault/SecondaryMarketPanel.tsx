@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { encodeFunctionData, formatUnits, keccak256 as viemKeccak256, parseUnits, type Address, type Hex } from "viem";
 import { useAccount, useChainId, useReadContract, useReadContracts, useSignMessage, useWalletClient } from "wagmi";
 import { erc20Abi, sharesEscrowAbi } from "@/lib/abis";
-import { useChainAddresses } from "@/lib/contracts";
+import { SECRET_MATCHING_ADDR, useChainAddresses } from "@/lib/contracts";
 import { useAction } from "@/lib/useAction";
 import { useSecretDepth } from "@/lib/useSecretDepth";
 import {
@@ -196,10 +196,14 @@ export function SecondaryMarketPanel({
         callbackSelector: "0x00000000",
       });
 
+      // _routingInfo is the target Secret contract, NOT the SecretPath gateway
+      // (the gateway is `to:` on the tx itself). Passing the gateway here made
+      // the relayer see no valid Secret target and drop the message.
+      if (!SECRET_MATCHING_ADDR) throw new Error("Secret matching contract not configured");
       const data = encodeFunctionData({
         abi: SECRETPATH_GATEWAY_ABI,
         functionName: "send",
-        args: [packet.payloadHash, account, gatewayAddr, packet.info],
+        args: [packet.payloadHash, account, SECRET_MATCHING_ADDR, packet.info],
       });
 
       const hash = await walletClient.sendTransaction({
