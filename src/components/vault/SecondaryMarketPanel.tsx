@@ -351,6 +351,33 @@ export function SecondaryMarketPanel({
         <p className="break-words text-[11px] text-negative">{escrow.error}</p>
       )}
 
+      {encryptedTxHash && (
+        <div className="hairline rounded-md border border-positive/30 bg-positive/[0.06] p-3 text-[12px]">
+          <div className="font-medium text-positive">Encrypted order broadcast to SecretPath</div>
+          <a
+            className="link-accent mt-1 inline-block font-mono text-[11px]"
+            href={`https://sepolia.basescan.org/tx/${encryptedTxHash}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {encryptedTxHash.slice(0, 12)}...{encryptedTxHash.slice(-8)} ↗
+          </a>
+          <p className="mt-1 text-ink3">
+            Relayer typically lands the order in Secret&apos;s book within ~30-60 seconds.
+          </p>
+        </div>
+      )}
+
+      {encryptingError && (
+        <div className="hairline rounded-md border border-negative/30 bg-negative/[0.06] p-3 text-[11.5px]">
+          <div className="font-medium text-negative">Encrypted leg failed</div>
+          <p className="mt-1 break-words text-ink2">{encryptingError}</p>
+          <p className="mt-1 text-ink3">
+            Your Base collateral is still locked — use &quot;Release {isSell ? "shares" : "USDC"}&quot; to recover.
+          </p>
+        </div>
+      )}
+
       {/* Status: what has to happen after Base lock */}
       <div className="hairline rounded-md border bg-bg2 p-3 text-[11.5px] leading-relaxed text-ink2">
         <div className="eyebrow mb-1 !text-[10px]">How this works</div>
