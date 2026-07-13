@@ -208,7 +208,7 @@ function extractOrderId(logs: { key: string; value: string }[]): number | undefi
 // gateway's send(). The gateway relays into our matching contract's Input
 // handler which decrypts + routes.
 
-import { x25519 } from "@noble/curves/ed25519.js";
+import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { chacha20poly1305 } from "@noble/ciphers/chacha.js";
 import { sha256 as nobleSha256 } from "@noble/hashes/sha2.js";
 import { randomBytes } from "@noble/hashes/utils.js";
@@ -323,12 +323,18 @@ export async function encryptOrderCall(input: EncryptOrderCallInput): Promise<En
     throw new Error("Secret matching contract not configured. See af-secret/README.md.");
   }
 
-  // Per-call ephemeral x25519 wallet used only for this order's ECDH handshake.
-  const userPrivateKey = randomBytes(32);
-  const userPublicKey = x25519.getPublicKey(userPrivateKey);
+  // Per-call ephemeral secp256k1 keypair for the ECDH handshake with the
+  // SecretPath gateway. The gateway's pubkey (compressed 33-byte secp256k1)
+  // arrives base64-encoded. We use the x-coordinate of the shared point as
+  // the ChaCha20 key seed, matching what SecretPath's Solar Republic client
+  // does on its side.
+  const userPrivateKey = secp256k1.utils.randomSecretKey();
+  const userPublicKey = secp256k1.getPublicKey(userPrivateKey, true); // compressed
   const gatewayPubkey = b64ToBytes(SECRETPATH_GATEWAY_PUBKEY_B64);
-  const shared = x25519.getSharedSecret(userPrivateKey, gatewayPubkey);
-  const sharedKey = nobleSha256(shared);
+  const sharedPoint = secp256k1.getSharedSecret(userPrivateKey, gatewayPubkey, true);
+  // Drop the 0x02/0x03 prefix byte, keep the 32-byte x-coordinate.
+  const sharedX = sharedPoint.slice(1);
+  const sharedKey = nobleSha256(sharedX);
 
   // Wrap the args JSON in SecretPath's expected envelope: it wants the payload
   // to be a JSON with data + routing + user info before we encrypt.
