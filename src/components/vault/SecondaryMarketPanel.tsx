@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatUnits, parseUnits, type Address } from "viem";
-import { useAccount, useReadContract, useReadContracts } from "wagmi";
+import { encodeFunctionData, formatUnits, keccak256 as viemKeccak256, parseUnits, type Address, type Hex } from "viem";
+import { useAccount, useChainId, useReadContract, useReadContracts, useSignMessage, useWalletClient } from "wagmi";
 import { erc20Abi, sharesEscrowAbi } from "@/lib/abis";
 import { useChainAddresses } from "@/lib/contracts";
 import { useAction } from "@/lib/useAction";
 import { useSecretDepth } from "@/lib/useSecretDepth";
+import {
+  SECRETPATH_GATEWAY_ABI,
+  SECRETPATH_GATEWAY_BASE_MAINNET,
+  SECRETPATH_GATEWAY_BASE_SEPOLIA,
+  encryptOrderCall,
+} from "@/lib/secretpath";
+import { base, baseSepolia } from "wagmi/chains";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
@@ -47,8 +54,13 @@ export function SecondaryMarketPanel({
 }) {
   const { address: account } = useAccount();
   const { sharesEscrow } = useChainAddresses();
+  const chainId = useChainId();
+  const { data: walletClient } = useWalletClient();
+  const { signMessageAsync } = useSignMessage();
   const escrowConfigured = Boolean(sharesEscrow);
   const depth = useSecretDepth(vaultAddress);
+  const [encryptedTxHash, setEncryptedTxHash] = useState<string | null>(null);
+  const [encryptingError, setEncryptingError] = useState<string | null>(null);
 
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState("");
@@ -149,6 +161,57 @@ export function SecondaryMarketPanel({
     }
     refetchAllowance();
     refetchEscrow();
+
+    // Second leg: encrypted order to the Secret matching contract via SecretPath.
+    // The lock above only escrows collateral on Base; without this second tx
+    // the order never reaches the book. Both must land for the flow to be
+    // complete. Failure here is surfaced but doesn't unwind the Base lock —
+    // user can Release to recover.
+    setEncryptedTxHash(null);
+    setEncryptingError(null);
+    try {
+      if (!walletClient) throw new Error("Wallet client unavailable");
+      const gatewayAddr =
+        chainId === base.id
+          ? SECRETPATH_GATEWAY_BASE_MAINNET
+          : chainId === baseSepolia.id
+            ? SECRETPATH_GATEWAY_BASE_SEPOLIA
+            : null;
+      if (!gatewayAddr) throw new Error(`SecretPath gateway not known for chain ${chainId}`);
+
+      const argsJson = JSON.stringify({
+        vault: vaultAddress,
+        side: isSell ? "ask" : "bid",
+        amount_shares: parsedAmount.toString(),
+        price_e6: parsedPrice.toString(),
+      });
+
+      const packet = await encryptOrderCall({
+        handle: isSell ? "submit_order" : "submit_order",
+        argsJson,
+        userBaseAddress: account,
+        personalSign: async (hashHex) => signMessageAsync({ message: { raw: hashHex } }),
+        keccak256: (bytes) => viemKeccak256(bytes),
+        callbackAddress: gatewayAddr as `0x${string}`,
+        callbackSelector: "0x00000000",
+      });
+
+      const data = encodeFunctionData({
+        abi: SECRETPATH_GATEWAY_ABI,
+        functionName: "send",
+        args: [packet.payloadHash, account, gatewayAddr, packet.info],
+      });
+
+      const hash = await walletClient.sendTransaction({
+        to: gatewayAddr as `0x${string}`,
+        data: data as Hex,
+        value: 100_000_000_000_000n, // ~0.0001 ETH for callback gas allowance
+      });
+      setEncryptedTxHash(hash);
+    } catch (err) {
+      setEncryptingError(err instanceof Error ? err.message : String(err));
+    }
+
     setAmount("");
     setPrice("");
   }
