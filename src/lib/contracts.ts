@@ -16,6 +16,9 @@ const SEPOLIA_USDC = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
 const SEPOLIA_FACTORY = "0x98C7bd4CB5097a6beE424898eA29DB96Ac6aB485" as Address;
 const SEPOLIA_ROUTER = "0x3Ceada45E2110E566cf2c8EB88C4E5d39040128d" as Address;
 const SEPOLIA_SHARES_ESCROW = "0x19B774441eAfEAD42F823A49b6a767Bb683bEc0D" as Address;
+const SEPOLIA_SETTLEMENT_VAULT = "0x826e6922B3582240798c9316Dc8f722C84f9Eb6e" as Address;
+
+const MAINNET_SETTLEMENT_VAULT = "0x730A36b6c4C61C1422bA6266e517819AD07c5E91" as Address;
 
 export type SupportedChainId = typeof base.id | typeof baseSepolia.id;
 
@@ -27,6 +30,7 @@ export interface ChainAddresses {
   router: Address | undefined;
   usdc: Address;
   sharesEscrow: Address | undefined;
+  settlementVault: Address | undefined;
   rpc: string;
   explorer: string;
   isTestnet: boolean;
@@ -40,6 +44,7 @@ export const MAINNET: ChainAddresses = {
   router: env(process.env.NEXT_PUBLIC_MAINNET_ROUTER_ADDRESS),
   usdc: env(process.env.NEXT_PUBLIC_MAINNET_USDC_ADDRESS) ?? MAINNET_USDC,
   sharesEscrow: env(process.env.NEXT_PUBLIC_MAINNET_SHARES_ESCROW_ADDRESS),
+  settlementVault: env(process.env.NEXT_PUBLIC_MAINNET_SETTLEMENT_VAULT_ADDRESS) ?? MAINNET_SETTLEMENT_VAULT,
   rpc: s(process.env.NEXT_PUBLIC_MAINNET_RPC_URL) || "https://mainnet.base.org",
   explorer: "https://basescan.org",
   isTestnet: false,
@@ -61,6 +66,7 @@ export const SEPOLIA: ChainAddresses = {
   sharesEscrow: env(process.env.NEXT_PUBLIC_SEPOLIA_SHARES_ESCROW_ADDRESS)
              ?? env(process.env.NEXT_PUBLIC_SHARES_ESCROW_ADDRESS)
              ?? SEPOLIA_SHARES_ESCROW,
+  settlementVault: env(process.env.NEXT_PUBLIC_SEPOLIA_SETTLEMENT_VAULT_ADDRESS) ?? SEPOLIA_SETTLEMENT_VAULT,
   rpc: s(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL)
     || s(process.env.NEXT_PUBLIC_RPC_URL)
     || "https://sepolia.base.org",

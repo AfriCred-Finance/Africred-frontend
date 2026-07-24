@@ -40,7 +40,8 @@ export function Nav() {
   const toggle = (name: "products" | "resources") =>
     setOpenDropdown((cur) => (cur === name ? null : name));
 
-  const productsActive = pathname.startsWith("/vaults") || pathname.startsWith("/borrow");
+  const productsActive =
+    pathname.startsWith("/vaults") || pathname.startsWith("/borrow") || pathname.startsWith("/settlement");
   const isLanding = pathname === "/";
 
   return (
@@ -122,6 +123,10 @@ function ProductsMenu({ open, active, onToggle }: MenuProps) {
       <div className="menu-panel">
         <Link href="/vaults" className="menu-item">
           <span>Vaults</span>
+          <span className="ext">→</span>
+        </Link>
+        <Link href="/settlement" className="menu-item">
+          <span>Settlement vault</span>
           <span className="ext">→</span>
         </Link>
         <Link href="/borrow" className="menu-item">
