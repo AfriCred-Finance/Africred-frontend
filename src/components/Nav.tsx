@@ -129,6 +129,10 @@ function ProductsMenu({ open, active, onToggle }: MenuProps) {
           <span>Settlement vault</span>
           <span className="ext">→</span>
         </Link>
+        <Link href="/settlement/whitelisted" className="menu-item">
+          <span>Settlement vault (whitelisted)</span>
+          <span className="ext">→</span>
+        </Link>
         <Link href="/borrow" className="menu-item">
           <span>Apply for a loan</span>
           <span className="ext">→</span>

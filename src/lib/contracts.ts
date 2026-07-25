@@ -17,8 +17,10 @@ const SEPOLIA_FACTORY = "0x98C7bd4CB5097a6beE424898eA29DB96Ac6aB485" as Address;
 const SEPOLIA_ROUTER = "0x3Ceada45E2110E566cf2c8EB88C4E5d39040128d" as Address;
 const SEPOLIA_SHARES_ESCROW = "0x19B774441eAfEAD42F823A49b6a767Bb683bEc0D" as Address;
 const SEPOLIA_SETTLEMENT_VAULT = "0x826E6922b3582240798C9316DC8f722C84f9Eb6E" as Address;
+const SEPOLIA_WHITELISTED_SETTLEMENT_VAULT = "0x657C8EDcEEc12826F408C9f8aF25Ea6A5d6b1000" as Address;
 
 const MAINNET_SETTLEMENT_VAULT = "0x730A36B6C4C61c1422Ba6266e517819AD07C5e91" as Address;
+const MAINNET_WHITELISTED_SETTLEMENT_VAULT = "0x487FAB1f2EB45a3beAa64c671F48C0961d4952Cf" as Address;
 
 export type SupportedChainId = typeof base.id | typeof baseSepolia.id;
 
@@ -31,6 +33,7 @@ export interface ChainAddresses {
   usdc: Address;
   sharesEscrow: Address | undefined;
   settlementVault: Address | undefined;
+  whitelistedSettlementVault: Address | undefined;
   rpc: string;
   explorer: string;
   isTestnet: boolean;
@@ -45,6 +48,8 @@ export const MAINNET: ChainAddresses = {
   usdc: env(process.env.NEXT_PUBLIC_MAINNET_USDC_ADDRESS) ?? MAINNET_USDC,
   sharesEscrow: env(process.env.NEXT_PUBLIC_MAINNET_SHARES_ESCROW_ADDRESS),
   settlementVault: env(process.env.NEXT_PUBLIC_MAINNET_SETTLEMENT_VAULT_ADDRESS) ?? MAINNET_SETTLEMENT_VAULT,
+  whitelistedSettlementVault:
+    env(process.env.NEXT_PUBLIC_MAINNET_WHITELISTED_SETTLEMENT_VAULT_ADDRESS) ?? MAINNET_WHITELISTED_SETTLEMENT_VAULT,
   rpc: s(process.env.NEXT_PUBLIC_MAINNET_RPC_URL) || "https://mainnet.base.org",
   explorer: "https://basescan.org",
   isTestnet: false,
@@ -67,6 +72,8 @@ export const SEPOLIA: ChainAddresses = {
              ?? env(process.env.NEXT_PUBLIC_SHARES_ESCROW_ADDRESS)
              ?? SEPOLIA_SHARES_ESCROW,
   settlementVault: env(process.env.NEXT_PUBLIC_SEPOLIA_SETTLEMENT_VAULT_ADDRESS) ?? SEPOLIA_SETTLEMENT_VAULT,
+  whitelistedSettlementVault:
+    env(process.env.NEXT_PUBLIC_SEPOLIA_WHITELISTED_SETTLEMENT_VAULT_ADDRESS) ?? SEPOLIA_WHITELISTED_SETTLEMENT_VAULT,
   rpc: s(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL)
     || s(process.env.NEXT_PUBLIC_RPC_URL)
     || "https://sepolia.base.org",

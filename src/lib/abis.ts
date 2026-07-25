@@ -563,4 +563,33 @@ export const settlementVaultAbi = [
   { type: "function", name: "unpause", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "pauseDeposits", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "unpauseDeposits", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  // Whitelist (present on WhitelistedSettlementVault only; harmless on the open one — the reads
+  // will just return `false`/revert and we gate the UI on the vault variant).
+  {
+    type: "function",
+    name: "whitelist",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "setWhitelist",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "allowed", type: "bool" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "setWhitelistBatch",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "accounts", type: "address[]" },
+      { name: "allowed", type: "bool" },
+    ],
+    outputs: [],
+  },
 ] as const;
