@@ -7,7 +7,9 @@ import { parseUnits, type Address } from "viem";
 import { useVault } from "@/lib/useVault";
 import { useAction } from "@/lib/useAction";
 import { erc20Abi, vaultAbi } from "@/lib/abis";
-import { useChainAddresses } from "@/lib/contracts";
+import { useBridgeSource, useChainAddresses, useHomeChainId } from "@/lib/contracts";
+import { CrossChainDepositForm } from "@/components/vault/CrossChainDepositPanel";
+import type { BridgeSource } from "@/lib/contracts";
 import {
   fmtAPY,
   fmtBps,
@@ -83,6 +85,12 @@ export function VaultStrategyModal({
 function ModalBody({ address, onClose }: { address: Address; onClose: () => void }) {
   const { address: account } = useAccount();
   const { vault, refetch } = useVault(address, account);
+  const homeAddresses = useChainAddresses();
+  const bridgeSource = useBridgeSource();
+  // On a deposit-source chain the Deposit tab has to bridge, not call the vault directly:
+  // the LP's USDC is on the wrong chain for a same-chain deposit, so offering one sends a
+  // transaction that cannot succeed.
+  const onSourceChain = Boolean(bridgeSource && bridgeSource.home.chainId === homeAddresses.chainId);
 
   if (!vault) {
     return <div className="p-12 text-center text-sm text-ink2">Loading vault…</div>;
@@ -104,7 +112,12 @@ function ModalBody({ address, onClose }: { address: Address; onClose: () => void
 
       {/* Top split: actions | strategy overview */}
       <div className="grid gap-px bg-rule lg:grid-cols-2">
-        <ActionsPane vault={vault} address={address} refetch={refetch} />
+        <ActionsPane
+          vault={vault}
+          address={address}
+          refetch={refetch}
+          bridgeSource={onSourceChain ? bridgeSource : undefined}
+        />
         <DetailsPane vault={vault} address={address} />
       </div>
     </>
@@ -118,10 +131,14 @@ function ActionsPane({
   vault,
   address,
   refetch,
+  bridgeSource,
 }: {
   vault: VaultData;
   address: Address;
   refetch: () => void;
+  /// Set when the wallet is on a chain that deposits into this vault by bridging. The
+  /// Deposit tab then runs the cross-chain flow instead of a same-chain vault call.
+  bridgeSource?: BridgeSource;
 }) {
   const { address: account } = useAccount();
   const { explorer } = useChainAddresses();
@@ -147,11 +164,12 @@ function ActionsPane({
     }
   }
 
+  const homeChainId = useHomeChainId();
   const { data: tokenData, refetch: refetchToken } = useReadContracts({
     allowFailure: false,
     contracts: [
-      { address: vault.asset, abi: erc20Abi, functionName: "balanceOf", args: [account ?? ZERO] },
-      { address: vault.asset, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address] },
+      { address: vault.asset, abi: erc20Abi, functionName: "balanceOf", args: [account ?? ZERO], chainId: homeChainId },
+      { address: vault.asset, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address], chainId: homeChainId },
     ],
     query: { enabled: Boolean(account), refetchInterval: 8000 },
   });
@@ -301,6 +319,15 @@ function ActionsPane({
           vault={vault}
           vaultAddress={address}
           refetch={refetch}
+        />
+      ) : bridgeSource && isDeposit ? (
+        /* Same component the vault page uses, so the two entry points cannot drift. */
+        <CrossChainDepositForm
+          vault={vault}
+          address={address}
+          account={account}
+          source={bridgeSource}
+          bare
         />
       ) : (
         <>

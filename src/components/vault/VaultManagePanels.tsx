@@ -7,6 +7,7 @@ import type { useVault } from "@/lib/useVault";
 import { useAction } from "@/lib/useAction";
 import { erc20Abi, vaultAbi, loanRegistryAbi } from "@/lib/abis";
 import { fmtUnits, phaseLabel } from "@/lib/format";
+import { useHomeChainId } from "@/lib/contracts";
 import { Stat } from "@/components/Stat";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
@@ -56,10 +57,13 @@ export function LoanServicingPanel({
   const canRecord = vault.custodied && !vault.recoveryRecorded;
 
   // USDC allowance for the vault (shared by recordRepayment AND recordRecovery — both pull from admin).
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: usdcAllowanceData, refetch: refetchUsdcAllowance } = useReadContracts({
     allowFailure: false,
     contracts: [
-      { address: vault.asset, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address] },
+      { address: vault.asset, abi: erc20Abi, chainId: homeChainId, functionName: "allowance", args: [account ?? ZERO, address] },
     ],
     query: { enabled: Boolean(account && vault.custodied), refetchInterval: 8000 },
   });
@@ -497,9 +501,12 @@ export function VaultAdminPanel({ vault, address, refetch }: { vault: VaultData;
   const [bufferAmt, setBufferAmt] = useState("");
   const buffer = useAction(refetch);
   const token = vault.asset;
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: bufTokenData, refetch: refetchBufToken } = useReadContracts({
     allowFailure: false,
-    contracts: [{ address: token, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address] }],
+    contracts: [{ address: token, abi: erc20Abi, chainId: homeChainId, functionName: "allowance", args: [account ?? ZERO, address] }],
     query: { enabled: Boolean(account && vault.tranched), refetchInterval: 8000 },
   });
   const bufAllow = (bufTokenData as [bigint] | undefined)?.[0];
@@ -679,10 +686,13 @@ export function DepositorWhitelistPanel({
 
   // Live check on the address the admin is typing — read isDepositorWhitelisted from chain.
   const validAddr = isAddress(addr);
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: isWhitelisted, refetch: refetchCheck } = useReadContracts({
     allowFailure: false,
     contracts: validAddr
-      ? [{ address, abi: vaultAbi, functionName: "isDepositorWhitelisted", args: [addr as Address] }]
+      ? [{ address, abi: vaultAbi, chainId: homeChainId, functionName: "isDepositorWhitelisted", args: [addr as Address] }]
       : [],
     query: { enabled: validAddr, refetchInterval: 8000 },
   });

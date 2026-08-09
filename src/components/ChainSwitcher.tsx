@@ -2,11 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { base, baseSepolia } from "wagmi/chains";
+import { base, baseSepolia, bsc, bscTestnet } from "wagmi/chains";
 
+// BNB entries are deposit *sources*, not places vaults live. They are grouped apart in
+// the menu so nobody reads "BNB Chain" as a second deployment of the protocol.
 const CHAINS = [
-  { id: base.id, name: "Base", testnet: false },
-  { id: baseSepolia.id, name: "Sepolia", testnet: true },
+  { id: base.id, name: "Base", testnet: false, source: false },
+  { id: baseSepolia.id, name: "Sepolia", testnet: true, source: false },
+  { id: bsc.id, name: "BNB Chain", testnet: false, source: true },
+  { id: bscTestnet.id, name: "BNB Testnet", testnet: true, source: true },
 ] as const;
 
 /// Compact chain switcher. Shows current network; opens a menu to switch.
@@ -54,30 +58,37 @@ export function ChainSwitcher() {
         </svg>
       </button>
       {open && (
-        <div className="hairline absolute right-0 top-11 z-50 w-44 rounded-sm border bg-bg2 py-1 shadow-lg">
-          {CHAINS.map((c) => {
+        <div className="hairline absolute right-0 top-11 z-50 w-52 rounded-sm border bg-bg2 py-1 shadow-lg">
+          {CHAINS.map((c, i) => {
             const active = c.id === chainId;
+            const firstSource = c.source && !CHAINS[i - 1]?.source;
             return (
-              <button
-                key={c.id}
-                type="button"
-                disabled={isPending || active}
-                onClick={() => {
-                  switchChain({ chainId: c.id });
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-bg3 ${active ? "text-accent" : "text-ink"}`}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${c.testnet ? "bg-accent" : "bg-positive"}`} />
-                  <span>{c.name}</span>
-                </span>
-                {active && (
-                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-3 w-3">
-                    <path d="M2 6.5L5 9L10 3.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+              <div key={`${c.id}-group`}>
+                {firstSource && (
+                  <div className="hairline mt-1 border-t px-3 pb-1 pt-2 text-[10px] uppercase tracking-wide text-muted">
+                    Deposit from
+                  </div>
                 )}
-              </button>
+                <button
+                  type="button"
+                  disabled={isPending || active}
+                  onClick={() => {
+                    switchChain({ chainId: c.id });
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-bg3 ${active ? "text-accent" : "text-ink"}`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${c.testnet ? "bg-accent" : "bg-positive"}`} />
+                    <span>{c.name}</span>
+                  </span>
+                  {active && (
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-3 w-3">
+                      <path d="M2 6.5L5 9L10 3.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             );
           })}
         </div>

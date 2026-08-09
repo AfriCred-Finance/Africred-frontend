@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import type { Address } from "viem";
 import { vaultAbi, loanRegistryAbi } from "./abis";
+import { useHomeChainId, type ConfiguredChainId } from "./contracts";
 import { derivePhase } from "./format";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
@@ -27,8 +28,20 @@ export type Loan = {
   nextDueDate: bigint;              // unix timestamp
 };
 
-export function useVault(vault?: Address, account?: Address) {
-  const base = vault ? ({ address: vault, abi: vaultAbi } as const) : undefined;
+/**
+ * Read a vault's full state.
+ *
+ * Reads are pinned to the vault's home chain by default, NOT to the connected chain. That
+ * matters because a cross-chain deposit has the LP signing on BNB Chain while the vault,
+ * and every number shown about it, lives on Base. Following the wallet would query a Base
+ * address on BNB Chain and quietly return nothing.
+ *
+ * `chainId` overrides that when a caller needs a specific chain.
+ */
+export function useVault(vault?: Address, account?: Address, chainId?: ConfiguredChainId) {
+  const homeChainId = useHomeChainId();
+  const resolved = chainId ?? homeChainId;
+  const base = vault ? ({ address: vault, abi: vaultAbi, chainId: resolved } as const) : undefined;
 
   const { data, refetch, isLoading } = useReadContracts({
     allowFailure: false,
@@ -68,6 +81,7 @@ export function useVault(vault?: Address, account?: Address) {
     abi: loanRegistryAbi,
     functionName: "getLoan",
     args: loanId !== undefined ? [loanId] : undefined,
+    chainId: resolved,
     query: { enabled: Boolean(loanRegistry && loanId !== undefined), refetchInterval: 30000 },
   });
 

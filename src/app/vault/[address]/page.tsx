@@ -7,10 +7,12 @@ import { type Address, isAddress } from "viem";
 import { useVault } from "@/lib/useVault";
 import { useAction } from "@/lib/useAction";
 import { erc20Abi, vaultAbi } from "@/lib/abis";
-import { useChainAddresses } from "@/lib/contracts";
+import { useBridgeSource, useChainAddresses, useHomeChainId } from "@/lib/contracts";
 import { ipfsToHttp } from "@/lib/ipfs";
 import { fmtUnits, fmtDate, fmtBps, fmtLoanStatus, fmtRepayment, phaseLabel, shortAddr, isOverdue } from "@/lib/format";
 import { Stat, PhaseBadge } from "@/components/Stat";
+import { CrossChainDepositPanel } from "@/components/vault/CrossChainDepositPanel";
+import { CrossChainOrdersPanel } from "@/components/vault/CrossChainOrdersPanel";
 import {
   AllocatorPanel,
   LoanServicingPanel,
@@ -25,14 +27,21 @@ export default function VaultPage() {
   const params = useParams();
   const address = (params.address as string)?.toLowerCase() as Address;
   const { address: account } = useAccount();
-  const { vault, refetch } = useVault(isAddress(address) ? address : undefined, account);
-  const { explorer } = useChainAddresses();
+  const home = useChainAddresses();
+  const source = useBridgeSource();
+  // The vault only exists on the home chain. Pin reads there so the page still renders
+  // when the wallet is on a deposit source chain like BNB.
+  const { vault, refetch } = useVault(isAddress(address) ? address : undefined, account, home.chainId);
+  const { explorer } = home;
 
   if (!isAddress(address)) return <p className="text-sm text-muted">Invalid vault address.</p>;
   if (!vault) return <p className="text-sm text-muted">Loading vault…</p>;
 
   const isAllocator = account && account.toLowerCase() === vault.allocator.toLowerCase();
   const isOwner = account && account.toLowerCase() === vault.owner.toLowerCase();
+  // Direct deposit and redeem need the wallet on the home chain, so on a source chain the
+  // cross-chain form replaces that panel rather than sitting next to a broken one.
+  const onSourceChain = Boolean(source && source.home.chainId === home.chainId);
   const positionValue = (vault.shareBalance * vault.totalAssets) / (vault.totalSupply === 0n ? 1n : vault.totalSupply);
 
   return (
@@ -102,7 +111,9 @@ export default function VaultPage() {
       )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <LpPanel vault={vault} address={address} account={account} refetch={refetch} />
+        {!onSourceChain && <LpPanel vault={vault} address={address} account={account} refetch={refetch} />}
+        <CrossChainDepositPanel vault={vault} address={address} account={account} />
+        <CrossChainOrdersPanel vault={address} account={account} />
         {isAllocator && <AllocatorPanel vault={vault} address={address} refetch={refetch} />}
         {isOwner && <VaultAdminPanel vault={vault} address={address} refetch={refetch} />}
         {isOwner && <LoanServicingPanel vault={vault} address={address} refetch={refetch} />}
@@ -236,11 +247,12 @@ function LpPanel({
 
   const token = vault.asset;
 
+  const homeChainId = useHomeChainId();
   const { data: tokenData, refetch: refetchToken } = useReadContracts({
     allowFailure: false,
     contracts: [
-      { address: token, abi: erc20Abi, functionName: "balanceOf", args: [account ?? ZERO] },
-      { address: token, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address] },
+      { address: token, abi: erc20Abi, functionName: "balanceOf", args: [account ?? ZERO], chainId: homeChainId },
+      { address: token, abi: erc20Abi, functionName: "allowance", args: [account ?? ZERO, address], chainId: homeChainId },
     ],
     query: { enabled: Boolean(account), refetchInterval: 8000 },
   });

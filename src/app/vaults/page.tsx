@@ -3,17 +3,21 @@
 import { useReadContract } from "wagmi";
 import type { Address } from "viem";
 import { factoryAbi } from "@/lib/abis";
-import { useChainAddresses } from "@/lib/contracts";
+import { useChainAddresses, useHomeChainId } from "@/lib/contracts";
 import { useHiddenVaults } from "@/lib/hiddenVaults";
 import { VaultRow } from "@/components/VaultRow";
 import { ConfigBanner } from "@/components/ConfigBanner";
 
 export default function VaultsPage() {
   const { factory, chainName } = useChainAddresses();
+  // Pinned to the home chain, not the wallet's chain: on BNB Chain this would otherwise
+  // query the Base factory address on BNB and render as "no vaults deployed".
+  const homeChainId = useHomeChainId();
   const { data: vaults, isLoading } = useReadContract({
     address: factory,
     abi: factoryAbi,
     functionName: "allVaults",
+    chainId: homeChainId,
     query: { enabled: Boolean(factory), refetchInterval: 30000 },
   });
 

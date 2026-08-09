@@ -5,7 +5,7 @@ import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { keccak256, parseUnits, formatUnits, stringToBytes } from "viem";
 import type { Address } from "viem";
 import { erc20Abi, settlementVaultAbi } from "@/lib/abis";
-import { useChainAddresses } from "@/lib/contracts";
+import { useChainAddresses, useHomeChainId } from "@/lib/contracts";
 import { useAction } from "@/lib/useAction";
 import { Stat } from "@/components/Stat";
 
@@ -48,21 +48,24 @@ export function SettlementView({ variant }: { variant: SettlementVariant }) {
   const isWhitelistedVariant = variant === "whitelisted";
   const { address: account } = useAccount();
 
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: vaultState, refetch: refetchState } = useReadContracts({
     contracts: settlementVault
       ? [
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "totalAssets" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "outstanding" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "availableLiquidity" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "assetsOwedTotal" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "totalSupply" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "drawCapBps" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "paused" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "depositsPaused" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "allocator" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "owner" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "nextClaimId" },
-          { address: settlementVault, abi: settlementVaultAbi, functionName: "queueLength" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "totalAssets" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "outstanding" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "availableLiquidity" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "assetsOwedTotal" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "totalSupply" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "drawCapBps" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "paused" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "depositsPaused" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "allocator" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "owner" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "nextClaimId" },
+          { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "queueLength" },
         ]
       : [],
     query: { enabled: Boolean(settlementVault), refetchInterval: REFETCH_MS },
@@ -88,9 +91,9 @@ export function SettlementView({ variant }: { variant: SettlementVariant }) {
     contracts:
       settlementVault && account && usdc
         ? [
-            { address: settlementVault, abi: settlementVaultAbi, functionName: "balanceOf", args: [account] },
-            { address: usdc, abi: erc20Abi, functionName: "balanceOf", args: [account] },
-            { address: usdc, abi: erc20Abi, functionName: "allowance", args: [account, settlementVault] },
+            { address: settlementVault, abi: settlementVaultAbi, chainId: homeChainId, functionName: "balanceOf", args: [account] },
+            { address: usdc, abi: erc20Abi, chainId: homeChainId, functionName: "balanceOf", args: [account] },
+            { address: usdc, abi: erc20Abi, chainId: homeChainId, functionName: "allowance", args: [account, settlementVault] },
           ]
         : [],
     query: { enabled: Boolean(settlementVault && account && usdc), refetchInterval: REFETCH_MS },
@@ -103,6 +106,7 @@ export function SettlementView({ variant }: { variant: SettlementVariant }) {
   const { data: userAssets } = useReadContract({
     address: settlementVault,
     abi: settlementVaultAbi,
+    chainId: homeChainId,
     functionName: "convertToAssets",
     args: shareBalance !== undefined ? [shareBalance] : undefined,
     query: { enabled: Boolean(settlementVault && shareBalance !== undefined) },
@@ -346,9 +350,13 @@ function LpPanel({
   const needsApproval = depositUnits > 0n && (usdcAllowance ?? 0n) < depositUnits;
   const canInstantWithdraw = withdrawUnits > 0n && withdrawUnits <= (availableLiquidity ?? 0n);
 
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: sharesToBurn } = useReadContract({
     address: vault,
     abi: settlementVaultAbi,
+    chainId: homeChainId,
     functionName: "previewWithdraw",
     args: withdrawUnits > 0n ? [withdrawUnits] : undefined,
     query: { enabled: withdrawUnits > 0n },
@@ -525,10 +533,14 @@ function QueueSection({
     return out;
   }, [from, total]);
 
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: entries } = useReadContracts({
     contracts: indices.map((i) => ({
       address: vault,
       abi: settlementVaultAbi as unknown as never,
+      chainId: homeChainId,
       functionName: "queue" as unknown as never,
       args: [i],
     })),
@@ -1118,9 +1130,13 @@ function WhitelistPanel({
     return list.filter((s) => /^0x[a-fA-F0-9]{40}$/.test(s)) as Address[];
   }, [batchText]);
 
+  // Pinned to the home chain: on a bridge source like BNB Chain, following the
+  // wallet would query a Base address on BNB and silently return nothing.
+  const homeChainId = useHomeChainId();
   const { data: checkResult } = useReadContract({
     address: vault,
     abi: settlementVaultAbi,
+    chainId: homeChainId,
     functionName: "whitelist",
     args: /^0x[a-fA-F0-9]{40}$/.test(checkAddr) ? [checkAddr as Address] : undefined,
     query: { enabled: /^0x[a-fA-F0-9]{40}$/.test(checkAddr) },

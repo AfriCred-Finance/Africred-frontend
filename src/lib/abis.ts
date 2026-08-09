@@ -593,3 +593,124 @@ export const settlementVaultAbi = [
     outputs: [],
   },
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Cross-chain deposits. The gateway lives on the source chain (BNB Chain); the
+// composer lives on the home chain (Base). Both share the DepositOrder tuple,
+// so keep it identical to src/interfaces/IAfriCredComposer.sol in af-contracts.
+// ---------------------------------------------------------------------------
+
+const depositOrderTuple = {
+  type: "tuple",
+  components: [
+    { name: "vault", type: "address" },
+    { name: "receiver", type: "address" },
+    { name: "minAssetsOut", type: "uint256" },
+    { name: "minSharesOut", type: "uint256" },
+    { name: "bridgeBack", type: "bool" },
+  ],
+} as const;
+
+export const depositGatewayAbi = [
+  { type: "function", name: "bridgeToken", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "composer", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32" }] },
+  { type: "function", name: "dstEid", stateMutability: "view", inputs: [], outputs: [{ type: "uint32" }] },
+  { type: "function", name: "composeGas", stateMutability: "view", inputs: [], outputs: [{ type: "uint128" }] },
+  {
+    type: "function",
+    name: "quote",
+    stateMutability: "view",
+    inputs: [{ name: "amount", type: "uint256" }, { ...depositOrderTuple, name: "order" }],
+    outputs: [
+      { name: "nativeFee", type: "uint256" },
+      { name: "amountToSend", type: "uint256" },
+      { name: "amountToLand", type: "uint256" },
+    ],
+  },
+  {
+    type: "function",
+    name: "deposit",
+    stateMutability: "payable",
+    inputs: [
+      { name: "amount", type: "uint256" },
+      { name: "minBridgedOut", type: "uint256" },
+      { ...depositOrderTuple, name: "order" },
+    ],
+    outputs: [{ name: "guid", type: "bytes32" }],
+  },
+  {
+    type: "event",
+    name: "CrossChainDepositSent",
+    inputs: [
+      { name: "guid", type: "bytes32", indexed: true },
+      { name: "sender", type: "address", indexed: true },
+      { name: "vault", type: "address", indexed: true },
+      { name: "receiver", type: "address", indexed: false },
+      { name: "amountSent", type: "uint256", indexed: false },
+      { name: "nativeFee", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+export const composerAbi = [
+  { type: "function", name: "maxBridgeFee", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "shareBridges",
+    stateMutability: "view",
+    inputs: [{ name: "vault", type: "address" }],
+    outputs: [{ type: "address" }],
+  },
+  {
+    // `status`: 0 None, 1 Pending, 2 AwaitingBridge, 3 Settled, 4 Refunded.
+    type: "function",
+    name: "getOrder",
+    stateMutability: "view",
+    inputs: [{ name: "guid", type: "bytes32" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "vault", type: "address" },
+          { name: "receiver", type: "address" },
+          { name: "token", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "shares", type: "uint256" },
+          { name: "minAssetsOut", type: "uint256" },
+          { name: "minSharesOut", type: "uint256" },
+          { name: "srcEid", type: "uint32" },
+          { name: "bridgeBack", type: "bool" },
+          { name: "status", type: "uint8" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "function",
+    name: "retryDeposit",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "guid", type: "bytes32" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "claimRefund",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "guid", type: "bytes32" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "retryBridge",
+    stateMutability: "payable",
+    inputs: [{ name: "guid", type: "bytes32" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "claimShares",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "guid", type: "bytes32" }],
+    outputs: [],
+  },
+] as const;
