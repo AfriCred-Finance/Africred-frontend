@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { keccak256, parseUnits, formatUnits, stringToBytes } from "viem";
+import { keccak256, parseUnits, formatUnits, stringToBytes, isAddress } from "viem";
 import type { Address } from "viem";
 import { erc20Abi, settlementVaultAbi } from "@/lib/abis";
 import { useChainAddresses, useHomeChainId } from "@/lib/contracts";
@@ -674,12 +674,14 @@ function AllocatorPanel({
 }) {
   const [drawAmt, setDrawAmt] = useState("");
   const [drawRef, setDrawRef] = useState("");
+  const [drawDest, setDrawDest] = useState("");
   const [repayAmt, setRepayAmt] = useState("");
   const [repayRef, setRepayRef] = useState("");
 
   const drawA = useAction(() => {
     setDrawAmt("");
     setDrawRef("");
+    setDrawDest("");
     onSuccess();
   });
   const approveA = useAction(onSuccess);
@@ -707,6 +709,19 @@ function AllocatorPanel({
 
   const needsAllowance = repayUnits > 0n && (usdcAllowance ?? 0n) < repayUnits;
 
+  // The vault rejects any destination the owner has not approved, so check first rather than
+  // letting the allocator discover it as a revert.
+  const destValid = isAddress(drawDest.trim());
+  const homeChainId = useHomeChainId();
+  const { data: destApproved } = useReadContract({
+    address: vault,
+    abi: settlementVaultAbi,
+    functionName: "isPayoutDestination",
+    args: destValid ? [drawDest.trim() as Address] : undefined,
+    chainId: homeChainId,
+    query: { enabled: destValid },
+  });
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="card p-5">
@@ -725,11 +740,31 @@ function AllocatorPanel({
           value={drawAmt}
           onChange={(e) => setDrawAmt(e.target.value)}
         />
+        <input
+          type="text"
+          className="input mt-2"
+          placeholder="Payout destination (0x… approved by the owner)"
+          value={drawDest}
+          onChange={(e) => setDrawDest(e.target.value)}
+          spellCheck={false}
+        />
         {drawRef.trim() ? (
           <div className="mt-2 break-all font-mono text-[10px] text-ink3">
             ref → {fmtOrderRef(drawRef)}
           </div>
         ) : null}
+        {drawDest.trim().length > 0 && !destValid && (
+          <div className="mt-1 text-[10.5px] text-ink3">That is not a valid address.</div>
+        )}
+        {destValid && destApproved === false && (
+          <div className="mt-1 text-[10.5px] text-red-700/80">
+            Not an approved payout destination. The vault owner must allow it first.
+          </div>
+        )}
+        <div className="mt-2 text-[10.5px] text-ink3">
+          Funds go straight to this destination, not to you. Typically the payout router that
+          forwards to the off-ramp.
+        </div>
         <button
           className="btn-primary mt-3 w-full"
           onClick={() =>
@@ -737,10 +772,12 @@ function AllocatorPanel({
               address: vault,
               abi: settlementVaultAbi,
               functionName: "draw",
-              args: [drawUnits, fmtOrderRef(drawRef)],
+              args: [drawUnits, fmtOrderRef(drawRef), drawDest.trim() as Address],
             })
           }
-          disabled={drawA.pending || drawUnits === 0n || !drawRef.trim()}
+          disabled={
+            drawA.pending || drawUnits === 0n || !drawRef.trim() || !destValid || destApproved !== true
+          }
         >
           {drawA.pending ? "Drawing…" : "Draw"}
         </button>

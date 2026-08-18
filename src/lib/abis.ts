@@ -516,12 +516,32 @@ export const settlementVaultAbi = [
     outputs: [],
   },
   {
+    // `dest` must be an owner-approved payout destination. The allocator picks when and how
+    // much, never where, so this is chosen from the vault's allowlist rather than typed freely.
     type: "function",
     name: "draw",
     stateMutability: "nonpayable",
     inputs: [
       { name: "amount", type: "uint256" },
       { name: "orderRef", type: "bytes32" },
+      { name: "dest", type: "address" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "isPayoutDestination",
+    stateMutability: "view",
+    inputs: [{ name: "destination", type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "setPayoutDestination",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "destination", type: "address" },
+      { name: "allowed", type: "bool" },
     ],
     outputs: [],
   },
