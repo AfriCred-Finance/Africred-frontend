@@ -10,6 +10,7 @@ import { wagmiConfig } from "@/lib/wagmi";
 import { ConfigBanner } from "@/components/ConfigBanner";
 import { VaultCard } from "@/components/VaultCard";
 import { shortAddr } from "@/lib/format";
+import { SettlementAdmin } from "@/components/settlement/SettlementAdmin";
 
 const USDC_DECIMALS = 6;
 
@@ -26,9 +27,16 @@ function deriveVaultMeta(borrower: string): { name: string; symbol: string } {
 const STEPS = ["Vault Type", "Loan terms", "Vault config"] as const;
 type Step = 0 | 1 | 2;
 
+/**
+ * Two products share this page. "create" and "manage" are the credit vaults; "settlement"
+ * is supplier payments, which has its own service, its own vocabulary and no overlap in
+ * data. They sit together only because the same operators use both.
+ */
+type AdminView = "create" | "manage" | "settlement";
+
 export default function AdminPage() {
   const { address: account } = useAccount();
-  const [view, setView] = useState<"create" | "manage">("create");
+  const [view, setView] = useState<AdminView>("create");
   const [step, setStep] = useState<Step>(0);
   const [highlightVault, setHighlightVault] = useState<Address | null>(null);
 
@@ -39,7 +47,9 @@ export default function AdminPage() {
         description={
           view === "create"
             ? "Configure credit vaults, set loan terms, and deploy on-chain instances LPs can fund."
-            : "Manage the loan vaults you have deployed: lifecycle, custody, repayments."
+            : view === "manage"
+              ? "Manage the loan vaults you have deployed: lifecycle, custody, repayments."
+              : "Record client orders, confirm incoming funds, and pay suppliers."
         }
         right={<ViewTabs view={view} onChange={setView} />}
       />
@@ -50,25 +60,35 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="mt-6">
-        <ConfigBanner />
-      </div>
+      {view === "settlement" && (
+        <div className="mt-6">
+          <SettlementAdmin />
+        </div>
+      )}
 
-      <div className="mt-6">
-        {view === "create" ? (
-          <CreateLoan
-            account={account}
-            step={step}
-            setStep={setStep}
-            onCreated={(vault) => {
-              setHighlightVault(vault ?? null);
-              setView("manage");
-            }}
-          />
-        ) : (
-          <ManageLoans highlight={highlightVault} />
-        )}
-      </div>
+      {view !== "settlement" && (
+        <>
+          <div className="mt-6">
+            <ConfigBanner />
+          </div>
+
+          <div className="mt-6">
+            {view === "create" ? (
+              <CreateLoan
+                account={account}
+                step={step}
+                setStep={setStep}
+                onCreated={(vault) => {
+                  setHighlightVault(vault ?? null);
+                  setView("manage");
+                }}
+              />
+            ) : (
+              <ManageLoans highlight={highlightVault} />
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -105,12 +125,13 @@ function ViewTabs({
   view,
   onChange,
 }: {
-  view: "create" | "manage";
-  onChange: (v: "create" | "manage") => void;
+  view: AdminView;
+  onChange: (v: AdminView) => void;
 }) {
-  const tabs: { key: "create" | "manage"; label: string }[] = [
+  const tabs: { key: AdminView; label: string }[] = [
     { key: "create", label: "Create Loan" },
     { key: "manage", label: "Manage loan" },
+    { key: "settlement", label: "Settlement" },
   ];
   return (
     <div className="card flex items-stretch overflow-hidden">
