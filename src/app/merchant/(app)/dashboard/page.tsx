@@ -7,6 +7,7 @@ import {
   api,
   kybMessage,
   money,
+  paymentStatus,
   type Balance,
   type Merchant,
   type Operation,
@@ -126,7 +127,7 @@ export default function DashboardPage() {
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-sm">{money(o.toAmount, o.toCurrency)}</div>
-                <div className="text-xs text-muted">{labelFor(o)}</div>
+                <div className="text-xs text-muted">{paymentStatus(o)}</div>
               </div>
             </Link>
           ))}
@@ -134,18 +135,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
-
-/**
- * What state to show a merchant.
- *
- * Their words, not ours: they care whether the supplier has the money, not what the
- * internal record is called.
- */
-function labelFor(o: Operation): string {
-  if (o.state === "cancelled") return "Cancelled";
-  if (o.payout?.state === "failed") return "Failed";
-  if (o.payout?.settledAt) return "Completed";
-  if (o.payout?.drawTxHash) return "Supplier paid";
-  return "In progress";
 }

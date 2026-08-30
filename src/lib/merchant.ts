@@ -138,6 +138,24 @@ export function money(minor: string | null | undefined, currency: string): strin
   return `${value.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d })} ${currency}`;
 }
 
+/**
+ * What a merchant should read about a payment.
+ *
+ * Their words, not the record's: they care whether their supplier has the money, not what
+ * the internal state is called. Defined once, because three copies drift into a list
+ * saying one thing and the page it opens saying another.
+ */
+export function paymentStatus(o: {
+  state: string;
+  payout?: { state: string; drawTxHash: string | null; settledAt: string | null } | null;
+}): string {
+  if (o.state === "cancelled") return "Cancelled";
+  if (o.payout?.state === "failed") return "Failed";
+  if (o.payout?.settledAt) return "Completed";
+  if (o.payout?.drawTxHash) return "Supplier paid";
+  return "In progress";
+}
+
 /** What the merchant should understand from a KYB state, in their words rather than ours. */
 export function kybMessage(state: Merchant["kybState"], reason: string | null): {
   tone: "wait" | "ok" | "bad";
