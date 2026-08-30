@@ -10,6 +10,7 @@
  * free to drift from the first.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE } from "@/lib/session";
 
 const API = process.env.SETTLEMENT_API_URL ?? "http://127.0.0.1:8787";
 
@@ -20,12 +21,19 @@ async function forward(req: NextRequest, path: string[]) {
   const target = `${API}/${path.join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
 
+  // The session lives in an httpOnly cookie and becomes a bearer token only here, on the
+  // server. The page never holds it, so a script injected into it has nothing to steal.
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(target, {
       method: req.method,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body,
       signal: controller.signal,
       cache: "no-store",
