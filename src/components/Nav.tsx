@@ -14,6 +14,11 @@ export function Nav() {
   const [openDropdown, setOpenDropdown] = useState<null | "products" | "resources">(null);
   const navRef = useRef<HTMLDivElement>(null);
 
+  // The merchant area has its own header and no wallet. Showing "Vaults", "Earn yield" or
+  // a Connect button to someone who signed in with a password would be incoherent, and the
+  // brief is explicit that a merchant must never need to know what a wallet is.
+  const isMerchantArea = pathname.startsWith("/merchant");
+
   // Close dropdowns on outside click or Escape
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -43,6 +48,8 @@ export function Nav() {
   const productsActive =
     pathname.startsWith("/vaults") || pathname.startsWith("/borrow") || pathname.startsWith("/settlement");
   const isLanding = pathname === "/";
+
+  if (isMerchantArea) return null;
 
   return (
     <header className="hairline sticky top-0 z-30 border-b bg-bg/85 backdrop-blur-md">
