@@ -129,15 +129,16 @@ function ProductsMenu({ open, active, onToggle }: MenuProps) {
       </button>
       <div className="menu-panel">
         <Link href="/vaults" className="menu-item">
-          <span>Vaults</span>
+          <span>Credit Vaults</span>
           <span className="ext">→</span>
         </Link>
+        {/*
+          One entry, not two. Open and whitelisted are the same product with a different
+          deposit gate, and a menu that lists them separately asks a visitor to pick a
+          side before they know what either is. The choice belongs on the page.
+        */}
         <Link href="/settlement" className="menu-item">
           <span>Settlement vault</span>
-          <span className="ext">→</span>
-        </Link>
-        <Link href="/settlement/whitelisted" className="menu-item">
-          <span>Settlement vault (whitelisted)</span>
           <span className="ext">→</span>
         </Link>
         <Link href="/borrow" className="menu-item">
