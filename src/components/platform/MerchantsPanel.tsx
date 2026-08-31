@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, money, type Balance } from "@/lib/merchant";
+import { TransferScorePanel } from "./TransferScorePanel";
 import {
   KYB_LABEL,
   KYB_TONE,
@@ -335,6 +336,21 @@ function MerchantFile({
           </p>
         </div>
       </div>
+
+      {/*
+        Only for an approved merchant. Scoring one who cannot yet trade would report a
+        thin file as a weak client, when the real answer is that nothing has happened yet.
+      */}
+      {merchant.kybState === "approved" && (
+        <div>
+          <h3 className="mb-1 font-medium">Transfer score</h3>
+          <p className="mb-3 text-sm text-ink2">
+            Per client, not per merchant: this measures a trading relationship, and the
+            same merchant can serve a reliable importer and a first-time buyer at once.
+          </p>
+          <TransferScorePanel merchantId={merchantId} />
+        </div>
+      )}
 
       <div>
         <h3 className="mb-3 font-medium">Deposits</h3>

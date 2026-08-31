@@ -118,6 +118,50 @@ export const listDeposits = (merchantId: string) =>
 export const listRates = () =>
   api<{ results: ReferenceRate[] }>("platform/rates").then((r) => r.results);
 
+/**
+ * One dimension's contribution, with its own reasons.
+ *
+ * `coverage` is what makes the score readable. A dimension nothing is known about is
+ * excluded from the weighting rather than scored zero, so a thin file reads as uncertain
+ * instead of bad, and the console has to show both numbers or it misleads.
+ */
+export interface ScoreDimension {
+  key: string;
+  value: number;
+  coverage: number;
+  reasons: string[];
+}
+
+export interface TransferScore {
+  clientKey: string;
+  /** 0..1000, over measured dimensions only. Read it next to `coverage`. */
+  score: number;
+  band: string;
+  confidence: string;
+  coverage: number;
+  cycles: number;
+  /** The share of an invoice that may be advanced: the lower of the two bounds below. */
+  financingRatio: number;
+  bandRatio: number;
+  confidenceCap: number;
+  reasonCodes: string[];
+  dimensions: ScoreDimension[];
+  modelVersion: string;
+  policyVersion: string;
+  computedAt: string;
+  validUntil: string;
+}
+
+/**
+ * Computed on read rather than served from a cache: a stored score is evidence of a past
+ * decision, not the answer today. The merchant is passed so one merchant's client cannot
+ * be scored on another's history.
+ */
+export const scoreFor = (clientId: string, merchantId: string) =>
+  api<TransferScore>(
+    `scores/${encodeURIComponent(clientId)}?merchantId=${encodeURIComponent(merchantId)}`,
+  );
+
 // ------------------------------------------------------------------------------ writes
 
 const post = <T>(path: string, body?: unknown) =>
@@ -158,6 +202,12 @@ export const confirmDeposit = (
   body: { approver: string; usdcCeiling: string; deadline: number; signature: string },
 ) => post<PlatformDeposit>(`platform/deposits/${encodeURIComponent(id)}/confirm`, body);
 
+/** Persist a snapshot, so a decision taken now stays explainable later. */
+export const saveScore = (clientId: string, merchantId: string) =>
+  post<TransferScore>(
+    `scores/${encodeURIComponent(clientId)}?merchantId=${encodeURIComponent(merchantId)}`,
+  );
+
 export const publishRate = (body: {
   fiatCurrency: string;
   toCurrency: string;
@@ -192,6 +242,28 @@ export function kybActions(state: KybState): Array<"review" | "approve" | "rejec
       return [];
   }
 }
+
+/**
+ * Bands run T0 to T4 in the credit policy. Tone tracks what the band permits, not the
+ * number: T0 advances nothing, so it reads as a refusal rather than as a low score.
+ */
+export const BAND_TONE: Record<string, string> = {
+  T0: "border-red-500/30 text-red-700",
+  T1: "border-line text-muted",
+  T2: "border-accent/40 text-accent",
+  T3: "border-accent/40 text-accent",
+  T4: "border-accent/40 text-accent",
+};
+
+export const DIMENSION_LABEL: Record<string, string> = {
+  repayment: "Repayment",
+  settlement: "Settlement",
+  kyb: "Verification",
+  recurrence: "Recurrence",
+  funding: "Funding",
+  documents: "Documents",
+  concentration: "Concentration",
+};
 
 export const KYB_TONE: Record<KybState, string> = {
   draft: "border-line text-muted",
