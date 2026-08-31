@@ -85,6 +85,21 @@ export interface Attestation {
   message: Record<string, string | number>;
 }
 
+/**
+ * Which vault this deployment actually drives, and on which chain.
+ *
+ * Read from the API rather than from build-time configuration. The console must check a
+ * signer against the vault the backend will really carry the signature to; a frontend
+ * constant that has drifted from the deployment would clear a signature the chain then
+ * refuses, which is the failure these guardrails exist to prevent.
+ */
+export interface VaultInfo {
+  chainId: number;
+  vault: `0x${string}`;
+}
+
+export const vaultInfo = () => api<VaultInfo>("health");
+
 // ------------------------------------------------------------------------------- reads
 
 export const listMerchants = (state?: KybState) =>

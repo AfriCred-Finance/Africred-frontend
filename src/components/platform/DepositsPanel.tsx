@@ -1,15 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAccount, useSignTypedData } from "wagmi";
+import { useAccount, useChainId, useReadContract, useSignTypedData, useSwitchChain } from "wagmi";
 import type { Hex } from "viem";
 import { money, toMinor } from "@/lib/merchant";
+import { wagmiConfig } from "@/lib/wagmi";
+import type { ConfiguredChainId } from "@/lib/contracts";
 import {
   confirmDeposit,
   depositAttestation,
   listDeposits,
   listMerchants,
   recordDeposit,
+  vaultInfo,
+  type VaultInfo,
   type PlatformDeposit,
   type PlatformMerchant,
 } from "@/lib/platform";
@@ -294,13 +298,81 @@ function DepositRow({ deposit, onDone }: { deposit: PlatformDeposit; onDone: () 
   );
 }
 
+/**
+ * The API reports a plain number; wagmi will only read from a chain it was configured with.
+ *
+ * Narrowed rather than cast, because the mismatch is worth surfacing: a backend driving a
+ * vault on a chain this interface does not know is a deployment error, and silently
+ * reading from the wrong chain would answer "not an approver" for the wrong reason.
+ */
+function configuredChain(id: number | undefined): ConfiguredChainId | undefined {
+  return wagmiConfig.chains.some((c) => c.id === id) ? (id as ConfiguredChainId) : undefined;
+}
+
+/** The one call this screen makes to the chain: may this wallet attest at all. */
+const IS_APPROVER_ABI = [
+  {
+    type: "function",
+    name: "isApprover",
+    stateMutability: "view",
+    inputs: [{ type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
+] as const;
+
 function AttestForm({ deposit, onDone }: { deposit: PlatformDeposit; onDone: () => void }) {
   const { address, isConnected } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const connectedChain = useChainId();
+  const { switchChain } = useSwitchChain();
   const [ceiling, setCeiling] = useState("");
   const [days, setDays] = useState(String(DEFAULT_DEADLINE_DAYS));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Which vault the backend will carry this signature to, asked of the backend itself.
+  const [vault, setVault] = useState<VaultInfo | null>(null);
+  useEffect(() => {
+    void vaultInfo().then(setVault).catch(() => setVault(null));
+  }, []);
+
+  const vaultChain = configuredChain(vault?.chainId);
+
+  /**
+   * Whether the vault would accept this wallet.
+   *
+   * Read here rather than left to the backend, even though the backend now checks it too.
+   * A signature the chain will refuse is worth catching BEFORE the wallet opens: an
+   * operator who signs and is then told it was pointless has to work out whether anything
+   * happened, and on a busy day they will assume it did.
+   */
+  const { data: recognised, isLoading: checkingApprover } = useReadContract({
+    address: vault?.vault,
+    abi: IS_APPROVER_ABI,
+    functionName: "isApprover",
+    args: address ? [address] : undefined,
+    chainId: vaultChain,
+    query: { enabled: Boolean(vaultChain && address) },
+  });
+
+  const wrongChain = vault !== null && connectedChain !== vault.chainId;
+  // Ordered by what the operator should do first. Connecting a wallet on the wrong network
+  // and being told about the approver would send them fixing the second problem first.
+  const blocker = !isConnected
+    ? "Connect the approver wallet to sign."
+    : vault === null
+      ? "Cannot reach the settlement service to find out which vault to check against."
+      : vaultChain === undefined
+        ? `The settlement service drives a vault on chain ${vault.chainId}, which this ` +
+          `interface is not configured for. It cannot check who may attest there.`
+        : wrongChain
+          ? `Your wallet is on chain ${connectedChain}, the vault is on ${vault.chainId}.`
+          : checkingApprover
+            ? "Checking whether this wallet may attest..."
+            : recognised === false
+              ? `${address} is not an approver on ${vault.vault}. A signature from it would ` +
+                `be refused on-chain, so every payment against this deposit would fail.`
+              : null;
 
   async function sign(e: React.FormEvent) {
     e.preventDefault();
@@ -393,20 +465,37 @@ function AttestForm({ deposit, onDone }: { deposit: PlatformDeposit; onDone: () 
         </label>
       </div>
 
-      <div className="text-xs text-muted">
-        {isConnected ? (
-          <>
-            Signing as {address}. The vault only accepts an authorised approver, and it
-            checks that when the money moves, not now.
-          </>
-        ) : (
-          "No wallet connected. Connect the approver wallet in the header."
-        )}
-      </div>
+      {/*
+        Stated before signing rather than after. The vault is the authority on who may
+        attest, so the console asks it and reports the answer here, where it can still
+        change what the operator does.
+      */}
+      {blocker ? (
+        <div className="hairline rounded-sm border border-red-500/30 p-3 text-sm text-red-700">
+          {blocker}
+          {wrongChain && vaultChain !== undefined && (
+            <button
+              type="button"
+              className="btn btn-secondary ml-3"
+              onClick={() => switchChain({ chainId: vaultChain })}
+            >
+              Switch network
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="text-xs text-muted">
+          Signing as {address}, which this vault accepts as an approver.
+        </div>
+      )}
 
       {error && <div className="text-sm text-red-700">{error}</div>}
 
-      <button type="submit" className="btn btn-primary" disabled={busy !== null || !isConnected}>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={busy !== null || blocker !== null}
+      >
         {busy ?? "Sign the attestation"}
       </button>
       <p className="text-xs text-muted">
