@@ -126,9 +126,16 @@ export function SettlementView({ variant }: { variant: SettlementVariant }) {
   if (!settlementVault) {
     return (
       <div className="mx-auto max-w-content px-6 py-14 lg:px-12">
+        {/*
+          Two different reasons to be here, and only one is a misconfiguration. The
+          whitelisted variant simply does not exist on every chain, and telling an LP to go
+          set an environment variable when the answer is "switch networks" sends them
+          looking for a problem that is not theirs.
+        */}
         <p className="text-sm text-ink2">
-          No Settlement Vault is configured for {chainName}. Set NEXT_PUBLIC_SEPOLIA_SETTLEMENT_VAULT_ADDRESS or the
-          mainnet equivalent.
+          {isWhitelistedVariant
+            ? `No whitelisted settlement vault is deployed on ${chainName}. The open vault is on the other tab.`
+            : `No settlement vault is configured for ${chainName}.`}
         </p>
       </div>
     );

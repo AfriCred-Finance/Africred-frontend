@@ -3,12 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { base, baseSepolia, bsc, bscTestnet } from "wagmi/chains";
+import { arcTestnet } from "@/lib/contracts";
 
 // BNB entries are deposit *sources*, not places vaults live. They are grouped apart in
 // the menu so nobody reads "BNB Chain" as a second deployment of the protocol.
 const CHAINS = [
   { id: base.id, name: "Base", testnet: false, source: false },
   { id: baseSepolia.id, name: "Sepolia", testnet: true, source: false },
+  // Hosts the settlement vault and nothing else, and is not a bridge source: Arc is
+  // outside LayerZero's mesh, so an LP deposits there directly or not at all.
+  { id: arcTestnet.id, name: "Arc Testnet", testnet: true, source: false },
   { id: bsc.id, name: "BNB Chain", testnet: false, source: true },
   { id: bscTestnet.id, name: "BNB Testnet", testnet: true, source: true },
 ] as const;

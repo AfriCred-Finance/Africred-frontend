@@ -19,11 +19,35 @@ const SEPOLIA_SHARES_ESCROW = "0x19B774441eAfEAD42F823A49b6a767Bb683bEc0D" as Ad
 const SEPOLIA_SETTLEMENT_VAULT = "0x826E6922b3582240798C9316DC8f722C84f9Eb6E" as Address;
 const SEPOLIA_WHITELISTED_SETTLEMENT_VAULT = "0x657C8EDcEEc12826F408C9f8aF25Ea6A5d6b1000" as Address;
 
+/**
+ * Arc testnet, Circle's L1. Chain 5042002.
+ *
+ * Declared here rather than imported: wagmi does not ship it. The one thing worth stating
+ * is that the settlement vault is the ONLY thing deployed there. No factory, no router, no
+ * credit vaults, and no share bridge, because Arc is not in LayerZero's mesh. Everything
+ * else on this chain is `undefined` on purpose, and the pages that need those already
+ * handle a chain that does not have them.
+ */
+export const arcTestnet = {
+  id: 5_042_002,
+  name: "Arc Testnet",
+  // USDC, not ether. This is the NATIVE view and it carries 18 decimals; the ERC-20
+  // interface below carries 6. Same funds, two views, differing by 10**12.
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.testnet.arc.io"] } },
+  blockExplorers: { default: { name: "ArcScan", url: "https://testnet.arcscan.app" } },
+  testnet: true,
+} as const;
+
+/** USDC on Arc through its ERC-20 interface. A system predeploy, not a deployed token. */
+const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
+const ARC_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
+
 const MAINNET_SETTLEMENT_VAULT = "0x730A36B6C4C61c1422Ba6266e517819AD07C5e91" as Address;
 const MAINNET_WHITELISTED_SETTLEMENT_VAULT = "0x487FAB1f2EB45a3beAa64c671F48C0961d4952Cf" as Address;
 
 /// Chains that host vaults.
-export type SupportedChainId = typeof base.id | typeof baseSepolia.id;
+export type SupportedChainId = typeof base.id | typeof baseSepolia.id | typeof arcTestnet.id;
 
 /// Every chain in the wagmi config, home chains plus deposit sources. wagmi types
 /// `chainId` as a literal union, so anything passed to a read or write needs this rather
@@ -32,8 +56,8 @@ export type ConfiguredChainId = SupportedChainId | typeof bsc.id | typeof bscTes
 
 export interface ChainAddresses {
   chainId: SupportedChainId;
-  chainName: "Base" | "Base Sepolia";
-  short: "base" | "sepolia";
+  chainName: "Base" | "Base Sepolia" | "Arc Testnet";
+  short: "base" | "sepolia" | "arc";
   factory: Address | undefined;
   router: Address | undefined;
   usdc: Address;
@@ -92,14 +116,41 @@ export const SEPOLIA: ChainAddresses = {
   isTestnet: true,
 };
 
+/**
+ * Arc testnet.
+ *
+ * Only the settlement vault lives here, which is the whole point: Arc pays gas in USDC, so
+ * the key that has money to send suppliers has, by construction, money to send it with.
+ * The credit vaults have no such need and stay on Base.
+ */
+export const ARC: ChainAddresses = {
+  chainId: arcTestnet.id,
+  chainName: "Arc Testnet",
+  short: "arc",
+  factory: undefined,
+  router: undefined,
+  usdc: env(process.env.NEXT_PUBLIC_ARC_USDC_ADDRESS) ?? ARC_USDC,
+  sharesEscrow: undefined,
+  settlementVault: env(process.env.NEXT_PUBLIC_ARC_SETTLEMENT_VAULT_ADDRESS) ?? ARC_SETTLEMENT_VAULT,
+  // No whitelisted variant deployed on Arc. Left undefined rather than pointed at the open
+  // vault, which would show one vault under two names and let a deposit meant for a gated
+  // pool land in an open one.
+  whitelistedSettlementVault: undefined,
+  composer: undefined,
+  rpc: s(process.env.NEXT_PUBLIC_ARC_RPC_URL) || "https://rpc.testnet.arc.io",
+  explorer: "https://testnet.arcscan.app",
+  isTestnet: true,
+};
+
 /// Default chain is Base mainnet. Sepolia is the switchable option.
 export const DEFAULT_CHAIN = MAINNET;
 
-export const HOME_CHAIN_IDS: readonly number[] = [base.id, baseSepolia.id];
+export const HOME_CHAIN_IDS: readonly number[] = [base.id, baseSepolia.id, arcTestnet.id];
 
 export function homeChainFor(chainId: number): ChainAddresses | undefined {
   if (chainId === base.id) return MAINNET;
   if (chainId === baseSepolia.id) return SEPOLIA;
+  if (chainId === arcTestnet.id) return ARC;
   return undefined;
 }
 

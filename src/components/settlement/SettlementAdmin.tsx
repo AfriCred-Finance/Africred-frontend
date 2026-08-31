@@ -110,6 +110,46 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/**
+ * Where a transaction on this deployment can be looked up.
+ *
+ * Derived from the chain the API reports rather than from an environment variable. The
+ * variable was a single value for every chain, so once the settlement vault moved to Arc
+ * every hash in this console linked to Basescan, where it does not exist. An operator
+ * following that link concludes the payment never happened.
+ */
+const EXPLORERS: Record<number, string> = {
+  1: "https://etherscan.io",
+  8453: "https://basescan.org",
+  84532: "https://sepolia.basescan.org",
+  5042002: "https://testnet.arcscan.app",
+};
+
+/**
+ * Chain names, so the status bar reads as a place rather than a number.
+ *
+ * "Chain 5042002" tells an operator nothing, and the whole reason this bar exists is to
+ * let them confirm at a glance that they are about to move money on the network they
+ * think they are on.
+ */
+const CHAIN_NAMES: Record<number, string> = {
+  1: "Ethereum",
+  8453: "Base",
+  84532: "Base Sepolia",
+  5042002: "Arc Testnet",
+};
+
+const chainName = (id: number | undefined) =>
+  id === undefined ? "unknown" : (CHAIN_NAMES[id] ?? `chain ${id}`);
+
+function explorerFor(chainId: number | undefined): string {
+  return (
+    (chainId !== undefined ? EXPLORERS[chainId] : undefined) ??
+    process.env.NEXT_PUBLIC_EXPLORER_URL ??
+    "https://basescan.org"
+  );
+}
+
 const usd = (base: string | null | undefined) =>
   base === null || base === undefined ? "-" : `${(Number(base) / 1e6).toFixed(2)} USDC`;
 
@@ -184,7 +224,7 @@ export function SettlementAdmin() {
       </div>
 
       <div className="mt-6">
-        {tab === "operations" && <Operations />}
+        {tab === "operations" && <Operations chainId={health?.chainId} />}
         {tab === "merchants" && <Merchants />}
         {tab === "overview" && <Overview health={health} />}
       </div>
@@ -229,8 +269,20 @@ function HealthBar({
     <div className="card p-4">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <span className={chainOk ? "text-accent" : "text-red-700"}>
-          Chain {health.chainId} {chainOk ? "ok" : health.chain}
+          {chainName(health.chainId)} {chainOk ? "ok" : health.chain}
         </span>
+        {/*
+          The vault this console is actually driving, linked. An operator about to release
+          capital should be able to check the contract without trusting the label above it.
+        */}
+        <a
+          className="text-ink2 underline decoration-ink/20 hover:decoration-ink"
+          href={`${explorerFor(health.chainId)}/address/${health.vault}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Vault {health.vault.slice(0, 6)}...{health.vault.slice(-4)}
+        </a>
         <span className={cedarOk ? "text-accent" : "text-red-700"}>
           Provider {cedarOk ? "ok" : health.cedar}
         </span>
@@ -253,7 +305,7 @@ function HealthBar({
 
 // ----------------------------------------------------------------------- operations
 
-function Operations() {
+function Operations({ chainId }: { chainId?: number }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -276,6 +328,7 @@ function Operations() {
   if (selected) {
     return (
       <OrderDetail
+        chainId={chainId}
         orderId={selected}
         onBack={() => {
           setSelected(null);
@@ -420,7 +473,7 @@ function Field({
 
 // --------------------------------------------------------------------- order detail
 
-function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void }) {
+function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: () => void; chainId?: number }) {
   const [data, setData] = useState<{
     intake: Order;
     payout: Payout | null;
@@ -590,7 +643,7 @@ function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void 
 
       {steps && <StepList steps={steps} />}
 
-      {payout && <Reconciliation intake={intake} payout={payout} settlement={settlement} />}
+      {payout && <Reconciliation intake={intake} payout={payout} settlement={settlement} chainId={chainId} />}
 
       {payout?.drawTxHash && !payout.settledAt && (
         <Repay orderId={orderId} settlement={settlement} onDone={load} />
@@ -764,12 +817,14 @@ function Reconciliation({
   intake,
   payout,
   settlement,
+  chainId,
 }: {
   intake: Order;
   payout: Payout;
   settlement: Settlement | null;
+  chainId?: number;
 }) {
-  const explorer = process.env.NEXT_PUBLIC_EXPLORER_URL ?? "https://basescan.org";
+  const explorer = explorerFor(chainId);
   return (
     <div className="card space-y-4 p-5">
       <h3 className="font-medium">Reconciliation</h3>
