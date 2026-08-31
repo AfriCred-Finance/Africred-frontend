@@ -131,6 +131,24 @@ export async function signOut(): Promise<void> {
  */
 const DECIMALS: Record<string, number> = { XOF: 0, USDC: 6, CNY: 2, EUR: 2, USD: 2 };
 
+export function decimalsFor(currency: string): number {
+  return DECIMALS[currency] ?? 2;
+}
+
+/**
+ * A figure as typed into a form, into the minor units the API stores.
+ *
+ * The inverse of `money`, and it has to exist somewhere: an operator types 500000 francs,
+ * and XOF having no minor unit is exactly the kind of per-currency detail that gets
+ * assumed wrong at the one call site that does its own conversion.
+ */
+export function toMinor(value: string, currency: string): string {
+  const d = decimalsFor(currency);
+  const [whole, frac = ""] = value.trim().replace(/\s/g, "").split(".");
+  const padded = (frac + "0".repeat(d)).slice(0, d);
+  return String(BigInt(whole || "0") * 10n ** BigInt(d) + BigInt(padded || "0"));
+}
+
 export function money(minor: string | null | undefined, currency: string): string {
   if (minor === null || minor === undefined) return "-";
   const d = DECIMALS[currency] ?? 2;

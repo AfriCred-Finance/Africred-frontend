@@ -8,28 +8,12 @@
  *
  * Deliberately no wallet anywhere: no connect button, no network switcher, no chain. A
  * merchant signs in with a password and pays a supplier. The only signature in this system
- * belongs to our own approver, and it lives in the platform admin, not here.
+ * belongs to our own approver, and it lives in the admin console, not here.
  */
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { SESSION_COOKIE } from "@/lib/session";
+import { currentPrincipal } from "@/lib/principal";
 import { MerchantHeader } from "@/components/merchant/MerchantHeader";
-
-const API = process.env.SETTLEMENT_API_URL ?? "http://127.0.0.1:8787";
-
-async function currentPrincipal() {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-
-  const res = await fetch(`${API}/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  }).catch(() => null);
-
-  if (!res?.ok) return null;
-  return (await res.json()) as { email: string; role: string; merchantId: string | null };
-}
 
 export default async function MerchantAppLayout({ children }: { children: React.ReactNode }) {
   const principal = await currentPrincipal();

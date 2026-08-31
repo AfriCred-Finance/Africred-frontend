@@ -10,7 +10,7 @@ import { wagmiConfig } from "@/lib/wagmi";
 import { ConfigBanner } from "@/components/ConfigBanner";
 import { VaultCard } from "@/components/VaultCard";
 import { shortAddr } from "@/lib/format";
-import { SettlementAdmin } from "@/components/settlement/SettlementAdmin";
+import Link from "next/link";
 
 const USDC_DECIMALS = 6;
 
@@ -28,11 +28,13 @@ const STEPS = ["Vault Type", "Loan terms", "Vault config"] as const;
 type Step = 0 | 1 | 2;
 
 /**
- * Two products share this page. "create" and "manage" are the credit vaults; "settlement"
- * is supplier payments, which has its own service, its own vocabulary and no overlap in
- * data. They sit together only because the same operators use both.
+ * Credit vaults: configure one, deploy it, then run it.
+ *
+ * The settlement side lives at /admin/settlement. The two share operators but no data and
+ * no vocabulary, which is why they are two pages under one console rather than tabs of
+ * one page: a tab strip implies you might flip between them mid-task, and nobody does.
  */
-type AdminView = "create" | "manage" | "settlement";
+type AdminView = "create" | "manage";
 
 export default function AdminPage() {
   const { address: account } = useAccount();
@@ -42,14 +44,16 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-content px-6 py-10 lg:px-12">
+      <Link href="/admin" className="text-sm text-ink3 transition-colors hover:text-ink2">
+        &larr; Admin
+      </Link>
+      <div className="mt-4" />
       <PageHeader
-        title="Admin"
+        title="Credit vaults"
         description={
           view === "create"
             ? "Configure credit vaults, set loan terms, and deploy on-chain instances LPs can fund."
-            : view === "manage"
-              ? "Manage the loan vaults you have deployed: lifecycle, custody, repayments."
-              : "Record client orders, confirm incoming funds, and pay suppliers."
+            : "Manage the loan vaults you have deployed: lifecycle, custody, repayments."
         }
         right={<ViewTabs view={view} onChange={setView} />}
       />
@@ -60,35 +64,25 @@ export default function AdminPage() {
         </div>
       )}
 
-      {view === "settlement" && (
-        <div className="mt-6">
-          <SettlementAdmin />
-        </div>
-      )}
+      <div className="mt-6">
+        <ConfigBanner />
+      </div>
 
-      {view !== "settlement" && (
-        <>
-          <div className="mt-6">
-            <ConfigBanner />
-          </div>
-
-          <div className="mt-6">
-            {view === "create" ? (
-              <CreateLoan
-                account={account}
-                step={step}
-                setStep={setStep}
-                onCreated={(vault) => {
-                  setHighlightVault(vault ?? null);
-                  setView("manage");
-                }}
-              />
-            ) : (
-              <ManageLoans highlight={highlightVault} />
-            )}
-          </div>
-        </>
-      )}
+      <div className="mt-6">
+        {view === "create" ? (
+          <CreateLoan
+            account={account}
+            step={step}
+            setStep={setStep}
+            onCreated={(vault) => {
+              setHighlightVault(vault ?? null);
+              setView("manage");
+            }}
+          />
+        ) : (
+          <ManageLoans highlight={highlightVault} />
+        )}
+      </div>
     </div>
   );
 }
@@ -131,7 +125,6 @@ function ViewTabs({
   const tabs: { key: AdminView; label: string }[] = [
     { key: "create", label: "Create Loan" },
     { key: "manage", label: "Manage loan" },
-    { key: "settlement", label: "Settlement" },
   ];
   return (
     <div className="card flex items-stretch overflow-hidden">

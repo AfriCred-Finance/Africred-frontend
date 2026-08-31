@@ -17,7 +17,8 @@ export function Nav() {
   // The merchant area has its own header and no wallet. Showing "Vaults", "Earn yield" or
   // a Connect button to someone who signed in with a password would be incoherent, and the
   // brief is explicit that a merchant must never need to know what a wallet is.
-  const isMerchantArea = pathname.startsWith("/merchant");
+  const isMerchantArea =
+    pathname.startsWith("/merchant") || pathname.startsWith("/admin/login");
 
   // Close dropdowns on outside click or Escape
   useEffect(() => {
@@ -76,12 +77,6 @@ export function Nav() {
             open={openDropdown === "resources"}
             onToggle={() => toggle("resources")}
           />
-          <Link
-            href="/admin"
-            className={`menu-btn ${pathname.startsWith("/admin") ? "active" : ""}`}
-          >
-            Admin
-          </Link>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -139,6 +134,15 @@ function ProductsMenu({ open, active, onToggle }: MenuProps) {
         */}
         <Link href="/settlement" className="menu-item">
           <span>Settlement vault</span>
+          <span className="ext">→</span>
+        </Link>
+        {/*
+          The merchant landing, not the app. It has its own header and no wallet, so it
+          reads as a distinct product a business signs up for, sitting alongside the
+          LP-facing vaults rather than inside the authenticated /merchant area.
+        */}
+        <Link href="/merchant" className="menu-item">
+          <span>Merchant Portal</span>
           <span className="ext">→</span>
         </Link>
         <Link href="/borrow" className="menu-item">
