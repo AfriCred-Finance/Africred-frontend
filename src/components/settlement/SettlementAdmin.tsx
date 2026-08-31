@@ -24,6 +24,11 @@ interface Order {
   clientReference: string | null;
   supplierName: string;
   supplierAccountId: number | null;
+  /** What the merchant recorded about the beneficiary. Null on orders created before it was kept. */
+  supplierBankAccount: string | null;
+  supplierBankName: string | null;
+  supplierSwift: string | null;
+  destinationCountryIso: string | null;
   toAmount: string;
   toCurrency: string;
   fiatCurrency: string;
@@ -39,8 +44,20 @@ interface Order {
   payout?: Payout | null;
 }
 
+interface PayoutProviderOption {
+  id: string;
+  label: string;
+  available: boolean;
+  /** Why it cannot be used, when it cannot. Shown as-is: it names what is missing. */
+  reason: string | null;
+  /** Null until a corridor is named. */
+  supportsRoute: boolean | null;
+}
+
 interface Payout {
   state: string;
+  /** Which route this order actually took. */
+  provider?: string;
   fromAmount: string | null;
   depositAddress: string | null;
   drawTxHash: string | null;
@@ -412,6 +429,8 @@ function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void 
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<Step[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [providers, setProviders] = useState<PayoutProviderOption[] | null>(null);
+  const [provider, setProvider] = useState<string>("");
 
   const load = useCallback(async () => {
     try {
@@ -426,6 +445,29 @@ function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void 
     void load();
   }, [load]);
 
+  // Asked for once the order is loaded, with its corridor, so "can this provider be used"
+  // is answered about this payment rather than in general.
+  const intakeForRoute = data?.intake;
+  useEffect(() => {
+    if (!intakeForRoute) return;
+    const q = new URLSearchParams({
+      toAmount: intakeForRoute.toAmount,
+      toCurrency: intakeForRoute.toCurrency,
+      destinationCountryIso: intakeForRoute.destinationCountryIso ?? "",
+    });
+    void api<{ default: string; results: PayoutProviderOption[] }>(`payout-providers?${q}`)
+      .then((r) => {
+        setProviders(r.results);
+        // Preselect the configured default when it can actually serve this order, rather
+        // than the first row, which may be a route that cannot be used.
+        const usable = r.results.filter((p) => p.available && p.supportsRoute !== false);
+        setProvider(
+          usable.find((p) => p.id === r.default)?.id ?? usable[0]?.id ?? "",
+        );
+      })
+      .catch(() => setProviders([]));
+  }, [intakeForRoute]);
+
   if (error) return <div className="card border-red-500/30 p-4 text-sm text-red-700">{error}</div>;
   if (!data) return <div className="card p-6 text-sm text-muted">Loading...</div>;
 
@@ -438,7 +480,13 @@ function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void 
     try {
       const res = await api<{ ok: boolean; steps: Step[] }>(
         `orders/${encodeURIComponent(orderId)}/execute`,
-        { method: "POST", body: JSON.stringify({ supplierAccountId: intake.supplierAccountId }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            supplierAccountId: intake.supplierAccountId,
+            provider,
+          }),
+        },
       );
       setSteps(res.steps);
       await load();
@@ -476,13 +524,65 @@ function OrderDetail({ orderId, onBack }: { orderId: string; onBack: () => void 
       {intake.state === "pending_funds" && <ConfirmFunds intake={intake} onDone={load} />}
 
       {intake.state === "funded" && !payout?.drawTxHash && (
-        <div className="card space-y-3 p-5">
-          <h3 className="font-medium">Execute payment</h3>
-          <p className="text-sm text-ink2">
-            Funds attested by {intake.approver} up to {usd(intake.maxAmount)}. The settlement
-            account will pay the supplier through the selected provider.
-          </p>
-          <button type="button" className="btn btn-primary" onClick={execute} disabled={busy === "execute"}>
+        <div className="card space-y-5 p-5">
+          <div>
+            <h3 className="font-medium">Execute payment</h3>
+            <p className="mt-1 text-sm text-ink2">
+              Funds attested by {intake.approver} up to {usd(intake.maxAmount)}. The vault
+              sends USDC to the provider, which pays the supplier in{" "}
+              {intake.toCurrency}.
+            </p>
+          </div>
+
+          <Beneficiary intake={intake} />
+
+          <div>
+            <div className="label">Send through</div>
+            {providers === null && <div className="mt-2 text-sm text-muted">Loading routes...</div>}
+            <div className="mt-2 space-y-2">
+              {providers?.map((p) => {
+                // Two different refusals, and an operator can act on each. One is a
+                // missing credential; the other means this corridor needs another route.
+                const blocked = !p.available
+                  ? p.reason
+                  : p.supportsRoute === false
+                    ? `does not serve ${intake.toCurrency} to ${intake.destinationCountryIso ?? "this destination"}`
+                    : null;
+                return (
+                  <label
+                    key={p.id}
+                    className={`flex items-start gap-3 rounded-sm border p-3 ${
+                      blocked ? "border-line opacity-60" : "hairline cursor-pointer"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payout-provider"
+                      className="mt-1"
+                      value={p.id}
+                      checked={provider === p.id}
+                      disabled={blocked !== null}
+                      onChange={() => setProvider(p.id)}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{p.label}</span>
+                      {blocked && <span className="block text-xs text-muted">{blocked}</span>}
+                    </span>
+                  </label>
+                );
+              })}
+              {providers?.length === 0 && (
+                <div className="text-sm text-red-700">No payout route is configured.</div>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={execute}
+            disabled={busy === "execute" || provider === ""}
+          >
             {busy === "execute" ? "Executing..." : "Execute payment"}
           </button>
         </div>
@@ -606,6 +706,43 @@ function ConfirmFunds({ intake, onDone }: { intake: Order; onDone: () => void })
   );
 }
 
+/**
+ * Who is being paid, as the merchant recorded it.
+ *
+ * Shown at the moment of execution rather than buried in the order, because this is the
+ * last point at which a wrong account number can still be caught. Read-only on purpose:
+ * the merchant knows their supplier, and a field an operator can retype here is a field
+ * where a digit gets transposed under time pressure.
+ */
+function Beneficiary({ intake }: { intake: Order }) {
+  const rows: Array<[string, string | null]> = [
+    ["Name", intake.supplierName],
+    ["Bank account", intake.supplierBankAccount],
+    ["Bank", intake.supplierBankName],
+    ["SWIFT/BIC", intake.supplierSwift],
+    ["Destination", intake.destinationCountryIso],
+    ["Provider account id", intake.supplierAccountId ? String(intake.supplierAccountId) : null],
+  ];
+  return (
+    <div className="hairline rounded-sm border p-4">
+      <div className="label">Beneficiary</div>
+      <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-4">
+            <dt className="text-muted">{k}</dt>
+            {/*
+              An empty field is shown as empty rather than hidden. Orders created before
+              these were persisted have no answer, and a row that disappears looks like a
+              supplier with no bank account rather than a record with a gap.
+            */}
+            <dd className={`truncate ${v ? "text-ink" : "text-ink3"}`}>{v ?? "not recorded"}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function StepList({ steps }: { steps: Step[] }) {
   return (
     <div className="card p-5">
@@ -720,6 +857,7 @@ function AuditTrail({ intake, payout }: { intake: Order; payout: Payout | null }
   const rows: Array<[string, string | null]> = [
     ["Order recorded", intake.createdAt],
     ["Funds attested", intake.fundedAt],
+    ["Route", payout?.provider ?? null],
     ["Provider quote", payout?.fromAmount ? `${payout.fromAmount} USDC` : null],
     ["Settlement executed", payout?.drawTxHash ?? null],
     ["Provider notified", payout?.cedarPayoutStatus ?? null],
