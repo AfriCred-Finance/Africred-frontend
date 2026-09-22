@@ -59,7 +59,9 @@ export function SignUpForm({ autoFocus = false, onSuccess, onSwitchToSignIn }: P
     try {
       await session("signup", { ...form, email, password });
       onSuccess?.();
-      router.replace("/merchant/dashboard");
+      // Straight to the company file, which is the only thing a new account can act on:
+      // it cannot operate until reviewed, and it cannot be reviewed until it has papers.
+      router.replace("/merchant/documents");
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

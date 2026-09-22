@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, money, type Balance } from "@/lib/merchant";
 import { TransferScorePanel } from "./TransferScorePanel";
+import { ReviewDocuments } from "./ReviewDocuments";
+import { PricingPanel } from "./PricingPanel";
 import {
   KYB_LABEL,
   KYB_TONE,
@@ -34,7 +36,14 @@ const TABS: Array<{ key: KybState | "all"; label: string }> = [
   { key: "all", label: "All" },
 ];
 
-export function MerchantsPanel({ onDeposits }: { onDeposits: (merchantId: string) => void }) {
+export function MerchantsPanel({
+  onDeposits,
+  onChanged,
+}: {
+  onDeposits: (merchantId: string) => void;
+  /** Called after a verdict, so the counters above re-read the queues. */
+  onChanged?: () => void;
+}) {
   const [selected, setSelected] = useState<string | null>(null);
 
   return selected ? (
@@ -42,6 +51,7 @@ export function MerchantsPanel({ onDeposits }: { onDeposits: (merchantId: string
       merchantId={selected}
       onBack={() => setSelected(null)}
       onDeposits={onDeposits}
+      onChanged={onChanged}
     />
   ) : (
     <MerchantQueue onOpen={setSelected} />
@@ -132,10 +142,12 @@ function MerchantFile({
   merchantId,
   onBack,
   onDeposits,
+  onChanged,
 }: {
   merchantId: string;
   onBack: () => void;
   onDeposits: (merchantId: string) => void;
+  onChanged?: () => void;
 }) {
   const [merchant, setMerchant] = useState<PlatformMerchant | null>(null);
   const [balance, setBalance] = useState<Balance | null>(null);
@@ -180,6 +192,7 @@ function MerchantFile({
       if (kind === "suspend") await suspendMerchant(merchantId, reason.trim());
       setReason("");
       await load();
+      onChanged?.();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -324,18 +337,18 @@ function MerchantFile({
               v={balance ? `${money(balance.available, balance.currency)} available` : "-"}
             />
           </dl>
-          {/*
-            Documents are stored against the merchant but there is no platform route to
-            list or fetch them yet, and they need a private bucket with short-lived signed
-            URLs rather than a public link. Saying so beats an empty panel that looks like
-            the merchant uploaded nothing.
-          */}
-          <p className="mt-4 text-xs text-muted">
-            Uploaded documents are not viewable here yet: they need the private document
-            store and signed URLs.
-          </p>
         </div>
       </div>
+
+      {/* What the verdict is about, so it sits right under the company details. */}
+      <ReviewDocuments merchantId={merchantId} />
+
+      {/*
+        Only once approved: before that the merchant cannot operate, and approval is what
+        applies the standard terms. Showing an empty pricing form on a file under review
+        would invite someone to negotiate with a company not yet verified.
+      */}
+      {merchant.kybState === "approved" && <PricingPanel merchantId={merchantId} />}
 
       {/*
         Only for an approved merchant. Scoring one who cannot yet trade would report a

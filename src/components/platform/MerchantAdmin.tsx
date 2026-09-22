@@ -34,10 +34,17 @@ export function MerchantAdmin() {
   // Set when a reviewer jumps from a merchant's file straight to their deposits, so the
   // deposits panel opens on the merchant they were already looking at.
   const [depositsFor, setDepositsFor] = useState<string | null>(null);
+  /**
+   * Bumped by every action that changes a queue, so the counters above the tabs are
+   * re-read. They were loaded once when the page opened: approving a file left "KYB
+   * awaiting review" showing the number from before, right above the approved file.
+   */
+  const [version, setVersion] = useState(0);
+  const changed = () => setVersion((v) => v + 1);
 
   return (
     <div className="space-y-6">
-      <Queues />
+      <Queues version={version} section={section} />
 
       <div className="card inline-flex items-stretch overflow-hidden">
         {SECTIONS.map((s) => (
@@ -60,13 +67,16 @@ export function MerchantAdmin() {
 
       {section === "merchants" && (
         <MerchantsPanel
+          onChanged={changed}
           onDeposits={(id) => {
             setDepositsFor(id);
             setSection("deposits");
           }}
         />
       )}
-      {section === "deposits" && <DepositsPanel initialMerchantId={depositsFor} />}
+      {section === "deposits" && (
+        <DepositsPanel initialMerchantId={depositsFor} onChanged={changed} />
+      )}
       {section === "payments" && <SettlementAdmin />}
       {section === "rates" && <RatesPanel />}
     </div>
@@ -83,7 +93,12 @@ interface Order {
  * Queues rather than totals: how many merchants exist tells an operator nothing, how many
  * are blocked on them tells them which tab to open.
  */
-function Queues() {
+/**
+ * Re-read whenever `version` moves, and on every change of section. The payments console is
+ * an older component with no hook for this, so its effect on the counters shows when the
+ * operator moves to another tab rather than instantly.
+ */
+function Queues({ version, section }: { version: number; section: string }) {
   const [awaitingReview, setAwaitingReview] = useState<number | null>(null);
   const [pendingDeposits, setPendingDeposits] = useState<number | null>(null);
   const [awaitingFunds, setAwaitingFunds] = useState<number | null>(null);
@@ -112,7 +127,7 @@ function Queues() {
         // each report their own failures, and those are the ones with something to fix.
       }
     })();
-  }, []);
+  }, [version, section]);
 
   const show = (n: number | null) => (n === null ? "..." : n);
 

@@ -34,7 +34,14 @@ import {
 const CURRENCIES = ["XOF", "EUR", "USD"] as const;
 const DEFAULT_DEADLINE_DAYS = 30;
 
-export function DepositsPanel({ initialMerchantId }: { initialMerchantId?: string | null }) {
+export function DepositsPanel({
+  initialMerchantId,
+  onChanged,
+}: {
+  initialMerchantId?: string | null;
+  /** Called after a deposit is recorded or attested, so the counters re-read. */
+  onChanged?: () => void;
+}) {
   const [merchants, setMerchants] = useState<PlatformMerchant[]>([]);
   const [merchantId, setMerchantId] = useState<string>("");
   const [deposits, setDeposits] = useState<PlatformDeposit[]>([]);
@@ -92,7 +99,15 @@ export function DepositsPanel({ initialMerchantId }: { initialMerchantId?: strin
         </select>
       </label>
 
-      {merchantId && <RecordForm merchantId={merchantId} onDone={refresh} />}
+      {merchantId && (
+        <RecordForm
+          merchantId={merchantId}
+          onDone={() => {
+            void refresh();
+            onChanged?.();
+          }}
+        />
+      )}
 
       <div>
         <h3 className="mb-3 font-medium">Recorded</h3>
@@ -101,7 +116,14 @@ export function DepositsPanel({ initialMerchantId }: { initialMerchantId?: strin
             <div className="card p-6 text-sm text-muted">Nothing recorded for this merchant.</div>
           )}
           {deposits.map((d) => (
-            <DepositRow key={d.depositId} deposit={d} onDone={refresh} />
+            <DepositRow
+              key={d.depositId}
+              deposit={d}
+              onDone={() => {
+                void refresh();
+                onChanged?.();
+              }}
+            />
           ))}
         </div>
       </div>

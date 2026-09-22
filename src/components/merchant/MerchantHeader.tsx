@@ -7,7 +7,7 @@ import { signOut } from "@/lib/merchant";
 /**
  * The merchant's own navigation.
  *
- * Four destinations and a sign-out. No wallet, no network, no mention of a chain: the
+ * Five destinations and a sign-out. No wallet, no network, no mention of a chain: the
  * words here are the ones a trader uses, because that is who reads them.
  */
 const LINKS = [
@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/merchant/operations", label: "Payments" },
   { href: "/merchant/clients", label: "Clients" },
   { href: "/merchant/deposits", label: "Deposits" },
+  { href: "/merchant/documents", label: "Documents" },
 ] as const;
 
 export function MerchantHeader({ email }: { email: string }) {

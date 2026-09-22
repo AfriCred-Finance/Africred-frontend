@@ -71,6 +71,11 @@ export default function DashboardPage() {
             {kyb.title}
           </h2>
           <p className="mt-1 text-sm text-ink2">{kyb.detail}</p>
+          {(merchant.kybState === "draft" || merchant.kybState === "rejected") && (
+            <Link href="/merchant/documents" className="btn btn-primary mt-4 inline-block">
+              {merchant.kybState === "draft" ? "Upload my documents" : "Update my documents"}
+            </Link>
+          )}
         </div>
       )}
 

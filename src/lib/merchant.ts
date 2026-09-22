@@ -83,6 +83,51 @@ export interface Deposit {
   createdAt: string;
 }
 
+/** A company paper on file, with a short-lived link to read it. */
+export interface KybDocument {
+  id: number;
+  kind: string;
+  contentType: string;
+  sizeBytes: number;
+  sha256: string;
+  uploadedAt: string;
+  /** Expires within minutes; fetched again rather than stored. Null when storage is off. */
+  url: string | null;
+}
+
+/**
+ * What each kind is called on screen, and which ones a reviewer will expect.
+ *
+ * Expected is guidance, not a gate: the API needs one document to submit, because what a
+ * complete file looks like varies by country and legal form and a reviewer decides that.
+ */
+export const DOCUMENT_KINDS: Array<{ key: string; label: string; expected: boolean }> = [
+  { key: "company_registration", label: "Company registration (RCCM)", expected: true },
+  { key: "director_id", label: "Director's identity document", expected: true },
+  { key: "tax_certificate", label: "Tax certificate", expected: false },
+  { key: "proof_of_address", label: "Proof of address", expected: false },
+  { key: "bank_statement", label: "Bank statement", expected: false },
+  { key: "other", label: "Other", expected: false },
+];
+
+export const documentLabel = (kind: string) =>
+  DOCUMENT_KINDS.find((k) => k.key === kind)?.label ?? kind;
+
+/**
+ * A file, as the base64 the API takes.
+ *
+ * Read in the browser rather than streamed: documents are capped at 10 MB, and one JSON
+ * body keeps the upload on the same path, and the same proxy, as every other call.
+ */
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = () => reject(new Error("could not read the file"));
+    r.readAsDataURL(file);
+  });
+}
+
 /** Thrown with the API's own wording, which is more useful than anything invented here. */
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {

@@ -38,6 +38,18 @@ async function forward(req: NextRequest, path: string[]) {
       signal: controller.signal,
       cache: "no-store",
     });
+    // Everything this service answers is JSON except a document, and a document read as
+    // text is a corrupted document: PDFs are binary. So the body passes through as bytes
+    // and keeps the headers that say how to show it.
+    const type = res.headers.get("Content-Type") ?? "application/json";
+    if (!type.startsWith("application/json")) {
+      const headers: Record<string, string> = { "Content-Type": type };
+      for (const h of ["Content-Disposition", "Cache-Control", "X-Content-Type-Options"]) {
+        const v = res.headers.get(h);
+        if (v) headers[h] = v;
+      }
+      return new NextResponse(await res.arrayBuffer(), { status: res.status, headers });
+    }
     const text = await res.text();
     return new NextResponse(text, {
       status: res.status,
