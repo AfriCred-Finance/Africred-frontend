@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SignInForm } from "./SignInForm";
 import { SignUpForm } from "./SignUpForm";
 
@@ -63,7 +64,15 @@ function AuthButton({ mode, className, children }: ButtonProps & { mode: Mode })
       <button ref={trigger} type="button" className={className} onClick={() => setOpen(true)}>
         {children}
       </button>
-      {open && <AuthDialog initialMode={mode} onClose={close} />}
+      {/*
+        Rendered into <body>, not where the button sits. The header buttons live inside a
+        sticky header with backdrop-filter, and an ancestor with a backdrop filter becomes
+        the containing block for position: fixed. The dialog was being centred on the
+        64 px header instead of the screen, which put its title and first fields above the
+        top of the viewport where nobody could reach them. The buttons lower on the page
+        were outside the header and worked, which is why it went unnoticed.
+      */}
+      {open && createPortal(<AuthDialog initialMode={mode} onClose={close} />, document.body)}
     </>
   );
 }
