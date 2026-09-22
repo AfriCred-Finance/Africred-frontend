@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, money, type Balance, type Client, type Quote } from "@/lib/merchant";
+import { api, money, toMinor, type Balance, type Client, type Quote } from "@/lib/merchant";
 
 interface Preview {
   quote: Quote;
@@ -57,6 +57,21 @@ export default function NewOperationPage() {
 
   const ready = form.clientId && form.supplierName && form.supplierBankAccount && Number(form.toAmount) > 0;
 
+  /**
+   * What goes over the wire: the amount in minor units of its currency.
+   *
+   * The merchant types yuan. The API takes centimes of yuan, because every amount it
+   * handles is an integer in minor units. The form used to send what was typed as it was,
+   * so 50,000 yuan became 500.00 and the supplier would have been paid a hundredth of the
+   * invoice. The screens that DISPLAY amounts already divided correctly, which is why
+   * nothing looked wrong until a quote came back a hundred times too cheap.
+   */
+  const payload = (orderId: string) => ({
+    ...form,
+    toAmount: toMinor(form.toAmount, form.toCurrency.trim().toUpperCase()),
+    orderId,
+  });
+
   const price = useCallback(async () => {
     if (!ready) {
       setPreview(null);
@@ -70,7 +85,7 @@ export default function NewOperationPage() {
       setPreview(
         await api<Preview>("me/operations/preview", {
           method: "POST",
-          body: JSON.stringify({ ...form, orderId: `preview-${Date.now()}` }),
+          body: JSON.stringify(payload(`preview-${Date.now()}`)),
         }),
       );
     } catch (e) {
@@ -94,7 +109,7 @@ export default function NewOperationPage() {
     setError(null);
     try {
       const orderId = `TP-${form.destinationCountryIso}-${Date.now()}`;
-      await api("me/operations", { method: "POST", body: JSON.stringify({ ...form, orderId }) });
+      await api("me/operations", { method: "POST", body: JSON.stringify(payload(orderId)) });
       router.push(`/merchant/operations/${encodeURIComponent(orderId)}`);
     } catch (err) {
       setError((err as Error).message);
@@ -164,7 +179,9 @@ export default function NewOperationPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="label">Amount the supplier receives</span>
+              <span className="label">
+                Amount the supplier receives{form.toCurrency ? ` (${form.toCurrency.toUpperCase()})` : ""}
+              </span>
               <input
                 className="input mt-1 w-full"
                 inputMode="decimal"
