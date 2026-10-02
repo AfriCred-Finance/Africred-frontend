@@ -214,8 +214,23 @@ export function paymentStatus(o: {
 }): string {
   if (o.state === "cancelled") return "Cancelled";
   if (o.payout?.state === "failed") return "Failed";
-  if (o.payout?.settledAt) return "Completed";
-  if (o.payout?.drawTxHash) return "Supplier paid";
+  if (o.payout?.state === "completed") return "Completed";
+  /**
+   * Two states this deliberately does NOT treat as the supplier being paid.
+   *
+   * `bridging` means the vault has released the funds and they are crossing a chain. A transaction
+   * hash exists from that moment, and reading it as "supplier paid" told a merchant their supplier
+   * had the money while it was still in flight, which on the slow route is a week early.
+   *
+   * `settledAt` is the vault's receivable being repaid. That is between the platform and its LPs
+   * and says nothing about whether a bank in China has been credited, so it is not consulted here
+   * at all even though it used to be what showed "Completed".
+   */
+  if (o.payout?.state === "bridging") return "Funds in transit";
+  if (o.payout?.state === "deposit_approved" || o.payout?.state === "arrived") {
+    return "With the payment provider";
+  }
+  if (o.payout?.drawTxHash) return "Funds sent";
   return "In progress";
 }
 

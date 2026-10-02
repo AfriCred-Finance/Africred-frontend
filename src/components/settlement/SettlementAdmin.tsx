@@ -1022,6 +1022,41 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
       */}
       {payout?.state === "bridging" && <CapitalInTransit orderId={orderId} onDone={load} />}
 
+      {/*
+        Nothing else moves a payout to completed: this service has no webhook route, so an order
+        nobody asks about stays at "with the provider" indefinitely. The button is here rather than
+        on a timer because asking costs a call to the provider's API.
+      */}
+      {payout?.state === "deposit_approved" && (
+        <div className="card flex flex-wrap items-center gap-3 p-5">
+          <div className="min-w-0">
+            <h3 className="font-medium">With the payment provider</h3>
+            <p className="mt-1 text-sm text-ink2">
+              The provider has the funds and is crediting the supplier&apos;s bank. Ask it where the
+              payment is; it completes here only once the provider says it arrived.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost ml-auto"
+            disabled={busy === "poll"}
+            onClick={async () => {
+              setBusy("poll");
+              try {
+                await api(`orders/${encodeURIComponent(orderId)}/poll`, { method: "POST" });
+                await load();
+              } catch (e) {
+                setSteps([{ step: "poll", ok: false, detail: (e as Error).message }]);
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            {busy === "poll" ? "Asking..." : "Ask the provider"}
+          </button>
+        </div>
+      )}
+
       {steps && <StepList steps={steps} />}
 
       {payout && <Reconciliation intake={intake} payout={payout} settlement={settlement} chainId={chainId} />}
@@ -1301,7 +1336,9 @@ function AuditTrail({ intake, payout }: { intake: Order; payout: Payout | null }
     ["Settlement executed", payout?.drawTxHash ?? null],
     ["Provider notified", payout?.cedarPayoutStatus ?? null],
     ["Repayments", payout?.repayTxHashes.length ? `${payout.repayTxHashes.length}` : null],
-    ["Settled", payout?.settledAt ?? null],
+    // The vault's receivable being repaid, which is between the platform and its LPs. It is not
+    // the supplier being paid, and it is labelled so it cannot be read as such.
+    ["Vault repaid", payout?.settledAt ?? null],
   ];
   return (
     <div className="card p-5">

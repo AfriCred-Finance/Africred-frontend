@@ -50,6 +50,10 @@ export default function OperationDetailPage() {
   // explainable with the figures the merchant agreed to.
   const quote = intake.quoteJson ? (JSON.parse(intake.quoteJson) as Quote) : null;
   const paid = Boolean(payout?.drawTxHash);
+  /** Released by the vault and still crossing. The supplier has nothing yet. */
+  const inTransit = payout?.state === "bridging";
+  const withProvider =
+    payout?.state === "arrived" || payout?.state === "deposit_approved" || payout?.state === "completed";
   const cancellable = intake.state !== "cancelled" && intake.state !== "consumed" && !paid;
 
   async function cancel() {
@@ -109,9 +113,23 @@ export default function OperationDetailPage() {
         <h2 className="font-medium">Progress</h2>
         <ol className="mt-3 space-y-2 text-sm">
           <Step done label="Payment created" detail={new Date(intake.createdAt).toLocaleString("fr-FR")} />
-          <Step done={paid} label="Sent to the supplier's bank" />
+          {/*
+            Not done while the funds are crossing a chain. A transaction hash exists from the moment
+            the vault releases them, and treating that as "sent" told a merchant their supplier had
+            the money while it was still in flight.
+          */}
           <Step
-            done={Boolean(payout?.settledAt)}
+            done={paid && !inTransit}
+            label="Funds sent"
+            detail={inTransit ? "crossing to the provider's chain" : undefined}
+          />
+          <Step
+            done={withProvider}
+            label="With the payment provider"
+            detail={withProvider ? "paying the supplier's bank" : undefined}
+          />
+          <Step
+            done={payout?.state === "completed"}
             label="Completed"
             detail={payout?.cedarPayoutStatus ?? undefined}
           />
