@@ -123,6 +123,8 @@ const EXPLORERS: Record<number, string> = {
   8453: "https://basescan.org",
   84532: "https://sepolia.basescan.org",
   5042002: "https://testnet.arcscan.app",
+  288: "https://bobascan.com",
+  28882: "https://testnet.bobascan.com",
 };
 
 /**
@@ -137,6 +139,8 @@ const CHAIN_NAMES: Record<number, string> = {
   8453: "Base",
   84532: "Base Sepolia",
   5042002: "Arc Testnet",
+  288: "Boba",
+  28882: "Boba Sepolia",
 };
 
 const chainName = (id: number | undefined) =>

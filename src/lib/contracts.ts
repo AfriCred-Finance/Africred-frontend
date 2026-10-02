@@ -1,7 +1,7 @@
 "use client";
 
 import { useChainId } from "wagmi";
-import { base, baseSepolia, bsc, bscTestnet } from "wagmi/chains";
+import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet } from "wagmi/chains";
 import type { Address } from "viem";
 
 const s = (v: string | undefined) => v?.trim() ?? "";
@@ -43,11 +43,24 @@ export const arcTestnet = {
 const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
 const ARC_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
 
+/**
+ * USDC on Boba Network, bridged from Ethereum rather than issued by Circle.
+ *
+ * Verified on chain 288: symbol USDC, 6 decimals, supply around 1M. Thin enough that it is
+ * worth knowing before sizing a draw.
+ */
+const BOBA_USDC = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc" as Address;
+
 const MAINNET_SETTLEMENT_VAULT = "0x730A36B6C4C61c1422Ba6266e517819AD07C5e91" as Address;
 const MAINNET_WHITELISTED_SETTLEMENT_VAULT = "0x487FAB1f2EB45a3beAa64c671F48C0961d4952Cf" as Address;
 
 /// Chains that host vaults.
-export type SupportedChainId = typeof base.id | typeof baseSepolia.id | typeof arcTestnet.id;
+export type SupportedChainId =
+  | typeof base.id
+  | typeof baseSepolia.id
+  | typeof arcTestnet.id
+  | typeof boba.id
+  | typeof bobaSepolia.id;
 
 /// Every chain in the wagmi config, home chains plus deposit sources. wagmi types
 /// `chainId` as a literal union, so anything passed to a read or write needs this rather
@@ -56,8 +69,8 @@ export type ConfiguredChainId = SupportedChainId | typeof bsc.id | typeof bscTes
 
 export interface ChainAddresses {
   chainId: SupportedChainId;
-  chainName: "Base" | "Base Sepolia" | "Arc Testnet";
-  short: "base" | "sepolia" | "arc";
+  chainName: "Base" | "Base Sepolia" | "Arc Testnet" | "Boba" | "Boba Sepolia";
+  short: "base" | "sepolia" | "arc" | "boba" | "boba-sepolia";
   factory: Address | undefined;
   router: Address | undefined;
   usdc: Address;
@@ -142,15 +155,62 @@ export const ARC: ChainAddresses = {
   isTestnet: true,
 };
 
+/**
+ * Boba Network.
+ *
+ * A settlement vault and nothing else, like Arc. No LayerZero endpoint is published at the
+ * V2 address on Boba, so shares cannot bridge from here either.
+ *
+ * The vault address is left to configuration rather than hardcoded: nothing is deployed
+ * there yet, and a constant pointing at an address with no code reads as a broken page
+ * instead of as a chain waiting for its deployment.
+ */
+export const BOBA: ChainAddresses = {
+  chainId: boba.id,
+  chainName: "Boba",
+  short: "boba",
+  factory: undefined,
+  router: undefined,
+  usdc: env(process.env.NEXT_PUBLIC_BOBA_USDC_ADDRESS) ?? BOBA_USDC,
+  sharesEscrow: undefined,
+  settlementVault: env(process.env.NEXT_PUBLIC_BOBA_SETTLEMENT_VAULT_ADDRESS),
+  whitelistedSettlementVault: undefined,
+  composer: undefined,
+  rpc: s(process.env.NEXT_PUBLIC_BOBA_RPC_URL) || "https://mainnet.boba.network",
+  explorer: "https://bobascan.com",
+  isTestnet: false,
+};
+
+/** Boba's testnet. No canonical USDC, so both addresses come from configuration. */
+export const BOBA_SEPOLIA: ChainAddresses = {
+  chainId: bobaSepolia.id,
+  chainName: "Boba Sepolia",
+  short: "boba-sepolia",
+  factory: undefined,
+  router: undefined,
+  usdc: env(process.env.NEXT_PUBLIC_BOBA_SEPOLIA_USDC_ADDRESS) ?? BOBA_USDC,
+  sharesEscrow: undefined,
+  settlementVault: env(process.env.NEXT_PUBLIC_BOBA_SEPOLIA_SETTLEMENT_VAULT_ADDRESS),
+  whitelistedSettlementVault: undefined,
+  composer: undefined,
+  rpc: s(process.env.NEXT_PUBLIC_BOBA_SEPOLIA_RPC_URL) || "https://sepolia.boba.network",
+  explorer: "https://testnet.bobascan.com",
+  isTestnet: true,
+};
+
 /// Default chain is Base mainnet. Sepolia is the switchable option.
 export const DEFAULT_CHAIN = MAINNET;
 
-export const HOME_CHAIN_IDS: readonly number[] = [base.id, baseSepolia.id, arcTestnet.id];
+export const HOME_CHAIN_IDS: readonly number[] = [
+  base.id, baseSepolia.id, arcTestnet.id, boba.id, bobaSepolia.id,
+];
 
 export function homeChainFor(chainId: number): ChainAddresses | undefined {
   if (chainId === base.id) return MAINNET;
   if (chainId === baseSepolia.id) return SEPOLIA;
   if (chainId === arcTestnet.id) return ARC;
+  if (chainId === boba.id) return BOBA;
+  if (chainId === bobaSepolia.id) return BOBA_SEPOLIA;
   return undefined;
 }
 
