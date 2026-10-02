@@ -52,12 +52,67 @@ interface PayoutProviderOption {
   reason: string | null;
   /** Null until a corridor is named. */
   supportsRoute: boolean | null;
+  /** Where this provider wants the deposit. Null when it cannot say. */
+  settlementChainId: number | null;
+  /** True when choosing this provider means the capital has to cross a chain. */
+  needsBridge: boolean;
+}
+
+/**
+ * A path capital can take off the vault's chain.
+ *
+ * Offered as a choice rather than resolved silently, because two routes to the same chain can
+ * differ by a week of latency and by whether a third party holds the funds on the way. That is
+ * not a detail to decide on an operator's behalf.
+ */
+interface BridgeRouteOption {
+  id: string;
+  label: string;
+  available: boolean;
+  reason: string | null;
+  fromChainId: number;
+  intermediateChainId: number | null;
+  toChainId: number;
+  entryAddress: string;
+  /** In words. The single fact that decides whether this corridor is a product. */
+  expectedDuration: string;
+  /** True when the route draws and bridges in one transaction, so nothing can be stranded. */
+  atomic?: boolean;
+}
+
+/**
+ * What a route will carry right now.
+ *
+ * `max` is null when the route has no ceiling, which is the canonical bridge: it carries any amount
+ * and takes a week about it. A liquidity route always has one, and it moves, because it is
+ * somebody's inventory rather than a protocol constant.
+ */
+interface BridgeCapacity {
+  routeId: string;
+  ok: boolean;
+  max: string | null;
+  reason: string | null;
+}
+
+interface BridgeTransfer {
+  orderId: string;
+  routeId: string;
+  stage: "created" | "left_source" | "on_intermediate" | "sent_to_payout" | "landed" | "failed";
+  amount: string;
+  finalRecipient: string;
+  toChainId: number;
+  /** What blocks progress, in words an operator can act on. Null when it is moving. */
+  waitingFor: string | null;
+  lastError: string | null;
+  legs: Array<{ name: string; chainId: number; txHash: string | null; note?: string }>;
 }
 
 interface Payout {
   state: string;
-  /** Which route this order actually took. */
+  /** Which provider this order actually went through. */
   provider?: string;
+  /** Which bridge carried it, when it had to cross a chain. Null for a same-chain payment. */
+  bridgeRoute?: string | null;
   fromAmount: string | null;
   depositAddress: string | null;
   drawTxHash: string | null;
@@ -82,6 +137,14 @@ interface Health {
   chainId: number;
   vault: string;
   chain: string;
+  /**
+   * Reachability per provider. One field for all of them was wrong in a way that only showed
+   * once there was a second route: an operator paying through one provider read a red badge
+   * about another and concluded their payment could not go out.
+   */
+  providers?: Array<{ id: string; label: string; ok: boolean; detail: string }>;
+  bridgeRoutes?: Array<{ id: string; available: boolean; reason: string | null }>;
+  /** Deprecated, kept so this renders against an API deployed before `providers` existed. */
   cedar: string;
   liquidity?: string;
   outstanding?: string;
@@ -171,6 +234,9 @@ function phaseOf(o: Order): { label: string; tone: "wait" | "ready" | "done" | "
   if (o.state === "cancelled") return { label: "Cancelled", tone: "bad" };
   if (o.payout?.state === "failed") return { label: "Failed", tone: "bad" };
   if (o.payout?.settledAt) return { label: "Settled", tone: "done" };
+  // Drawn, but the capital has not reached the provider yet. Showing "Supplier paid" here would
+  // be the single most misleading thing this screen could say.
+  if (o.payout?.state === "bridging") return { label: "Capital in transit", tone: "wait" };
   if (o.payout?.drawTxHash) return { label: "Supplier paid", tone: "done" };
   if (o.state === "funded") return { label: "Ready to pay", tone: "ready" };
   return { label: "Awaiting funds", tone: "wait" };
@@ -185,6 +251,118 @@ function Badge({ label, tone }: { label: string; tone: "wait" | "ready" | "done"
   }[tone];
   return (
     <span className={`rounded-full border px-2.5 py-0.5 text-xs ${cls}`}>{label}</span>
+  );
+}
+
+/**
+ * Where an order's capital is while it crosses a chain.
+ *
+ * Deliberately shows the legs, including the ones nobody here performed. A withdrawal finalised
+ * by someone else is work that happened, and a gap where it should be reads like a missing step
+ * rather than like a step done elsewhere.
+ */
+function CapitalInTransit({ orderId, onDone }: { orderId: string; onDone: () => void }) {
+  const [transfer, setTransfer] = useState<BridgeTransfer | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api<{ transfer: BridgeTransfer }>(
+        `orders/${encodeURIComponent(orderId)}/bridge`,
+      );
+      setTransfer(r.transfer);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function advance() {
+    setBusy(true);
+    try {
+      const r = await api<{ transfer: BridgeTransfer }>(
+        `orders/${encodeURIComponent(orderId)}/bridge/advance`,
+        { method: "POST" },
+      );
+      setTransfer(r.transfer);
+      setError(null);
+      // The payout only leaves `bridging` once the payee holds the funds, so the parent is
+      // refreshed on every advance rather than only on the last one.
+      onDone();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const STAGES: Record<BridgeTransfer["stage"], string> = {
+    created: "Waiting to leave",
+    left_source: "Left the vault's chain",
+    on_intermediate: "Arrived part of the way",
+    sent_to_payout: "Sent to the payout chain",
+    landed: "With the provider",
+    failed: "Given up on",
+  };
+
+  if (error) return <div className="card border-red-500/30 p-4 text-sm text-red-700">{error}</div>;
+  if (!transfer) return <div className="card p-5 text-sm text-muted">Loading transfer...</div>;
+
+  return (
+    <div className="card space-y-4 p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="font-medium">Capital in transit</h3>
+        <Badge
+          label={STAGES[transfer.stage]}
+          tone={transfer.stage === "landed" ? "done" : transfer.stage === "failed" ? "bad" : "wait"}
+        />
+        <span className="text-xs text-muted">over {transfer.routeId}</span>
+      </div>
+
+      <p className="text-sm text-ink2">
+        {usd(transfer.amount)} left the vault and is on its way to {transfer.finalRecipient} on
+        chain {transfer.toChainId}. The supplier has not been paid yet.
+      </p>
+
+      {transfer.waitingFor && (
+        <div className="rounded-sm border border-line p-3 text-sm">
+          <span className="text-muted">Waiting for </span>
+          {transfer.waitingFor}
+        </div>
+      )}
+
+      {transfer.lastError && (
+        <div className="rounded-sm border border-red-500/30 p-3 text-sm text-red-700">
+          {transfer.lastError}
+        </div>
+      )}
+
+      <div className="space-y-1">
+        {transfer.legs.map((leg, i) => (
+          <div key={`${leg.name}-${i}`} className="flex flex-wrap items-baseline gap-2 text-sm">
+            <span className="w-20 shrink-0 text-muted">{leg.name}</span>
+            <span className="text-xs text-ink2">chain {leg.chainId}</span>
+            {leg.txHash ? (
+              <span className="break-all font-mono text-xs">{leg.txHash}</span>
+            ) : (
+              <span className="text-xs text-muted">not our transaction</span>
+            )}
+            {leg.note && <span className="block w-full text-xs text-muted">{leg.note}</span>}
+          </div>
+        ))}
+      </div>
+
+      {transfer.stage !== "landed" && transfer.stage !== "failed" && (
+        <button type="button" className="btn btn-ghost" onClick={advance} disabled={busy}>
+          {busy ? "Checking..." : "Check and advance"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -287,9 +465,28 @@ function HealthBar({
         >
           Vault {health.vault.slice(0, 6)}...{health.vault.slice(-4)}
         </a>
-        <span className={cedarOk ? "text-accent" : "text-red-700"}>
-          Provider {cedarOk ? "ok" : health.cedar}
-        </span>
+        {/*
+          One badge per provider. A single shared one was wrong once there was a second route:
+          an operator paying through Mansa would read a red badge about Cedar and conclude their
+          payment could not go out. The `providers` fallback keeps this rendering against an API
+          deployed before the field existed.
+        */}
+        {(health.providers ?? [{ id: "cedar", label: "Provider", ok: cedarOk, detail: health.cedar }]).map(
+          (p) => (
+            <span key={p.id} className={p.ok ? "text-accent" : "text-red-700"} title={p.detail}>
+              {p.label} {p.ok ? "ok" : p.detail}
+            </span>
+          ),
+        )}
+        {/*
+          Shown only when routes exist, because most deployments have none and should not be
+          asked to think about bridges they do not use.
+        */}
+        {health.bridgeRoutes?.map((r) => (
+          <span key={r.id} className={r.available ? "text-ink2" : "text-red-700"}>
+            Path {r.id} {r.available ? "ready" : (r.reason ?? "unavailable")}
+          </span>
+        ))}
         <span className="text-ink2">Liquidity {usd(health.liquidity)}</span>
         <span className="text-ink2">Outstanding {usd(health.outstanding)}</span>
         <button type="button" onClick={onRefresh} className="btn btn-ghost ml-auto">
@@ -488,6 +685,10 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
   const [busy, setBusy] = useState<string | null>(null);
   const [providers, setProviders] = useState<PayoutProviderOption[] | null>(null);
   const [provider, setProvider] = useState<string>("");
+  const [routes, setRoutes] = useState<BridgeRouteOption[] | null>(null);
+  const [route, setRoute] = useState<string>("");
+  const [capacity, setCapacity] = useState<BridgeCapacity | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -525,6 +726,71 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
       .catch(() => setProviders([]));
   }, [intakeForRoute]);
 
+  const chosen = providers?.find((p) => p.id === provider);
+  const needsBridge = chosen?.needsBridge === true;
+  const settlesOn = chosen?.settlementChainId ?? null;
+
+  /**
+   * Asked only once a provider is chosen, and only for the chain THAT provider settles on.
+   *
+   * Offering every route the deployment knows would make the operator work out which ones apply.
+   * Offering none would hide a choice that changes how long the payment takes by a week.
+   */
+  useEffect(() => {
+    if (!needsBridge || settlesOn === null) {
+      setRoutes(null);
+      setRoute("");
+      return;
+    }
+    void api<{ results: BridgeRouteOption[] }>(`bridge-routes?toChainId=${settlesOn}`)
+      .then((r) => {
+        setRoutes(r.results);
+        setRoute(r.results.find((x) => x.available)?.id ?? "");
+      })
+      .catch(() => setRoutes([]));
+  }, [needsBridge, settlesOn]);
+
+  /**
+   * Ask the chosen route what it will carry, as soon as it is chosen.
+   *
+   * Before the payment rather than during it. The backend refuses independently when the payment is
+   * executed, and that refusal is the actual control; this one exists so an operator is not told
+   * about a ceiling only after committing an order and watching it fail with a supplier waiting.
+   */
+  useEffect(() => {
+    if (!route) {
+      setCapacity(null);
+      return;
+    }
+    let cancelled = false;
+    setCapacityLoading(true);
+    void api<BridgeCapacity>(`bridge-routes/${encodeURIComponent(route)}/capacity`)
+      .then((c) => {
+        if (!cancelled) setCapacity(c);
+      })
+      .catch(() => {
+        if (!cancelled) setCapacity(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCapacityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route]);
+
+  /**
+   * Whether this payment can fit through the chosen route.
+   *
+   * Compared against the ceiling the APPROVER attested, which is the upper bound on what the vault
+   * can be asked to release for this order. The exact USDC figure is not known until the provider
+   * quotes, inside execute, so the attested ceiling is the honest thing to check here: if even the
+   * bound fits, nothing the provider quotes can overflow the route.
+   */
+  const routeCeiling = capacity?.max === null || capacity?.max === undefined ? null : BigInt(capacity.max);
+  const attested = data?.intake.maxAmount ? BigInt(data.intake.maxAmount) : null;
+  const overCeiling = needsBridge && routeCeiling !== null && attested !== null && attested > routeCeiling;
+
   if (error) return <div className="card border-red-500/30 p-4 text-sm text-red-700">{error}</div>;
   if (!data) return <div className="card p-6 text-sm text-muted">Loading...</div>;
 
@@ -542,6 +808,9 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
           body: JSON.stringify({
             supplierAccountId: intake.supplierAccountId,
             provider,
+            // Sent only when one is needed. An empty string would be read as a named route that
+            // does not exist, and the order would be refused for the wrong reason.
+            ...(needsBridge && route ? { bridgeRoute: route } : {}),
           }),
         },
       );
@@ -629,21 +898,129 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
                 );
               })}
               {providers?.length === 0 && (
-                <div className="text-sm text-red-700">No payout route is configured.</div>
+                <div className="text-sm text-red-700">No payout provider is configured.</div>
               )}
             </div>
           </div>
+
+          {/*
+            Shown only when the chosen provider settles somewhere other than the vault's chain.
+            For a same-chain payment there is nothing to cross and no choice to make, which is
+            the arrangement to prefer and the reason this section usually is not here.
+          */}
+          {needsBridge && (
+            <div>
+              <div className="label">Path off chain {chainId}</div>
+              <p className="mt-1 text-sm text-ink2">
+                {chosen?.label} wants the deposit on chain {settlesOn}. The vault can only pay on
+                chain {chainId}, so the capital has to cross. This choice decides how long that
+                takes and who holds the funds on the way.
+              </p>
+              {routes === null && <div className="mt-2 text-sm text-muted">Loading paths...</div>}
+              <div className="mt-2 space-y-2">
+                {routes?.map((r) => (
+                  <label
+                    key={r.id}
+                    className={`flex items-start gap-3 rounded-sm border p-3 ${
+                      r.available ? "hairline cursor-pointer" : "border-line opacity-60"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bridge-route"
+                      className="mt-1"
+                      value={r.id}
+                      checked={route === r.id}
+                      disabled={!r.available}
+                      onChange={() => setRoute(r.id)}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{r.label}</span>
+                      <span className="block text-xs text-ink2">
+                        Takes {r.expectedDuration}
+                        {r.intermediateChainId !== null && `, via chain ${r.intermediateChainId}`}
+                      </span>
+                      {/* Named as-is: it says what is missing and who can fix it. */}
+                      {!r.available && r.reason && (
+                        <span className="block text-xs text-muted">{r.reason}</span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+                {routes?.length === 0 && (
+                  <div className="text-sm text-red-700">
+                    No path is configured from chain {chainId} to chain {settlesOn}, so this
+                    provider cannot be paid from this vault. Pick another provider, or have a
+                    route configured.
+                  </div>
+                )}
+              </div>
+
+              {/*
+                The ceiling, shown before the payment rather than discovered during it. A liquidity
+                route fronts the funds from an inventory that moves hour to hour, so this is a
+                market fact and not a setting. The backend checks it again at execution; this is
+                here so nobody commits an order to a route that cannot carry it.
+              */}
+              {route && (
+                <div className="mt-3 rounded-sm border border-line p-3 text-sm">
+                  {capacityLoading && <span className="text-muted">Checking what this path can carry...</span>}
+                  {!capacityLoading && capacity === null && (
+                    <span className="text-muted">
+                      Could not reach the bridge to ask its limit. The payment will still be
+                      refused at execution if it is too large.
+                    </span>
+                  )}
+                  {!capacityLoading && capacity !== null && routeCeiling === null && (
+                    <span className="text-ink2">
+                      No ceiling on this path: it carries any amount, and takes{" "}
+                      {routes?.find((r) => r.id === route)?.expectedDuration} about it.
+                    </span>
+                  )}
+                  {!capacityLoading && routeCeiling !== null && (
+                    <>
+                      <span className={overCeiling ? "text-red-700" : "text-ink2"}>
+                        This path can carry up to {usd(routeCeiling.toString())} right now.
+                      </span>
+                      {overCeiling && (
+                        <span className="mt-1 block text-red-700">
+                          The attested ceiling for this order is {usd(intake.maxAmount)}, which is
+                          more than the path will take. Choose a path with no ceiling, or have the
+                          order split deliberately into several orders: paying part of an invoice
+                          is worse for the supplier than paying all of it later.
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             type="button"
             className="btn btn-primary"
             onClick={execute}
-            disabled={busy === "execute" || provider === ""}
+            // A bridged payment with no path chosen would be refused at quote time. Refusing to
+            // start it is the same answer, given before anything is created.
+            // Blocked on the ceiling too. The backend refuses independently, which is what makes
+            // this a convenience rather than the control, but letting the click through would
+            // create an order that cannot be paid.
+            disabled={
+              busy === "execute" || provider === "" || (needsBridge && route === "") || overCeiling
+            }
           >
             {busy === "execute" ? "Executing..." : "Execute payment"}
           </button>
         </div>
       )}
+
+      {/*
+        The one state this screen must not round off. The vault has paid, the merchant has been
+        debited, and the supplier has not been paid: an operator looking at this order needs to
+        see where the money actually is and what it is waiting for.
+      */}
+      {payout?.state === "bridging" && <CapitalInTransit orderId={orderId} onDone={load} />}
 
       {steps && <StepList steps={steps} />}
 
@@ -916,7 +1293,10 @@ function AuditTrail({ intake, payout }: { intake: Order; payout: Payout | null }
   const rows: Array<[string, string | null]> = [
     ["Order recorded", intake.createdAt],
     ["Funds attested", intake.fundedAt],
-    ["Route", payout?.provider ?? null],
+    ["Provider", payout?.provider ?? null],
+    // Recorded per order, so this answers "which path did this payment take" without anyone
+    // having to read today's configuration.
+    ["Path off chain", payout?.bridgeRoute ?? null],
     ["Provider quote", payout?.fromAmount ? `${payout.fromAmount} USDC` : null],
     ["Settlement executed", payout?.drawTxHash ?? null],
     ["Provider notified", payout?.cedarPayoutStatus ?? null],

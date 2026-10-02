@@ -51,6 +51,16 @@ const ARC_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Add
  */
 const BOBA_USDC = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc" as Address;
 
+/**
+ * The settlement vault on Boba, deployed at block 39973802.
+ *
+ * Note the address: the same as Arc's, because the same deployer reached the same nonce on a
+ * fresh chain. Reconcile by chain id and never by address alone. Nothing on-chain is confused by
+ * this, because the EIP-712 domain carries the chain id, so an attestation signed for the Arc
+ * vault is rejected by this one; a human reading a bare address is the thing at risk.
+ */
+const BOBA_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
+
 const MAINNET_SETTLEMENT_VAULT = "0x730A36B6C4C61c1422Ba6266e517819AD07C5e91" as Address;
 const MAINNET_WHITELISTED_SETTLEMENT_VAULT = "0x487FAB1f2EB45a3beAa64c671F48C0961d4952Cf" as Address;
 
@@ -161,9 +171,8 @@ export const ARC: ChainAddresses = {
  * A settlement vault and nothing else, like Arc. No LayerZero endpoint is published at the
  * V2 address on Boba, so shares cannot bridge from here either.
  *
- * The vault address is left to configuration rather than hardcoded: nothing is deployed
- * there yet, and a constant pointing at an address with no code reads as a broken page
- * instead of as a chain waiting for its deployment.
+ * Capital can only leave Boba through the canonical bridge, which takes about seven days. That
+ * is a treasury operation rather than anything an LP does from this interface.
  */
 export const BOBA: ChainAddresses = {
   chainId: boba.id,
@@ -173,7 +182,8 @@ export const BOBA: ChainAddresses = {
   router: undefined,
   usdc: env(process.env.NEXT_PUBLIC_BOBA_USDC_ADDRESS) ?? BOBA_USDC,
   sharesEscrow: undefined,
-  settlementVault: env(process.env.NEXT_PUBLIC_BOBA_SETTLEMENT_VAULT_ADDRESS),
+  settlementVault:
+    env(process.env.NEXT_PUBLIC_BOBA_SETTLEMENT_VAULT_ADDRESS) ?? BOBA_SETTLEMENT_VAULT,
   whitelistedSettlementVault: undefined,
   composer: undefined,
   rpc: s(process.env.NEXT_PUBLIC_BOBA_RPC_URL) || "https://mainnet.boba.network",
