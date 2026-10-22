@@ -124,3 +124,10 @@ The panel checks upfront and warns rather than letting a doomed deposit through:
 Next.js 14, wagmi v2, viem, TanStack Query, Tailwind. Wallet via the injected connector (MetaMask). Monochrome stone / zinc palette with a light / dark theme toggle.
 
 Demo only. The contracts are unaudited.
+
+> Handover
+>
+> The context for all three AfriCred repositories lives in one place:
+> [af-backend/HANDOVER.md](https://github.com/AfriCred-Finance/af-backend/blob/main/HANDOVER.md).
+> What is live, what the keys are, what is still open, and the assumptions that cost a day.
+> Read it before changing anything that touches money.
