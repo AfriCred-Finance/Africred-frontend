@@ -61,7 +61,17 @@ const BOBA_USDC = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc" as Address;
  */
 const BOBA_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
 
-const MAINNET_SETTLEMENT_VAULT = "0x730A36B6C4C61c1422Ba6266e517819AD07C5e91" as Address;
+/**
+ * The Base vault. MAINNET means Base in this file, not Ethereum: it predates there being a
+ * second mainnet, and Ethereum is ETHEREUM below.
+ *
+ * Replaced 0x730A36B6, which is still live and still holds the name in older notes. That one
+ * predates the approval mechanism entirely: its owner and allocator were the same key, and
+ * `isApprover` does not exist on it, so a call reverts rather than answering false. Anything
+ * pointed at it has no signed-approval step and no role separation, whatever the contract
+ * source in af-contracts says.
+ */
+const MAINNET_SETTLEMENT_VAULT = "0xE9F4e7B601700DA7BCb6f27Fd1dc873ffdAFB060" as Address;
 
 /**
  * USDC on Ethereum. Circle's own, the one the payout provider's deposit symbol means.
