@@ -1,7 +1,7 @@
 "use client";
 
 import { useChainId } from "wagmi";
-import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet } from "wagmi/chains";
+import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet, mainnet } from "wagmi/chains";
 import type { Address } from "viem";
 
 const s = (v: string | undefined) => v?.trim() ?? "";
@@ -62,10 +62,29 @@ const BOBA_USDC = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc" as Address;
 const BOBA_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
 
 const MAINNET_SETTLEMENT_VAULT = "0x730A36B6C4C61c1422Ba6266e517819AD07C5e91" as Address;
+
+/**
+ * USDC on Ethereum. Circle's own, the one the payout provider's deposit symbol means.
+ */
+const ETHEREUM_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as Address;
+
+/**
+ * The settlement vault on Ethereum.
+ *
+ * The only one of our vaults that sits on the chain the payout provider actually settles on, so
+ * it pays suppliers directly with no bridge, no float and no router in between. Every other chain
+ * needs capital to cross before it can reach the provider, which is what all the bridge machinery
+ * exists for.
+ *
+ * Note the naming in this file: `MAINNET` means BASE mainnet, for historical reasons, so Ethereum
+ * gets its own name rather than inheriting a label that already means something else.
+ */
+const ETHEREUM_SETTLEMENT_VAULT = "0x33E6355630F753824f2275a418671595b0469283" as Address;
 const MAINNET_WHITELISTED_SETTLEMENT_VAULT = "0x487FAB1f2EB45a3beAa64c671F48C0961d4952Cf" as Address;
 
 /// Chains that host vaults.
 export type SupportedChainId =
+  | typeof mainnet.id
   | typeof base.id
   | typeof baseSepolia.id
   | typeof arcTestnet.id
@@ -79,8 +98,8 @@ export type ConfiguredChainId = SupportedChainId | typeof bsc.id | typeof bscTes
 
 export interface ChainAddresses {
   chainId: SupportedChainId;
-  chainName: "Base" | "Base Sepolia" | "Arc Testnet" | "Boba" | "Boba Sepolia";
-  short: "base" | "sepolia" | "arc" | "boba" | "boba-sepolia";
+  chainName: "Ethereum" | "Base" | "Base Sepolia" | "Arc Testnet" | "Boba" | "Boba Sepolia";
+  short: "ethereum" | "base" | "sepolia" | "arc" | "boba" | "boba-sepolia";
   factory: Address | undefined;
   router: Address | undefined;
   usdc: Address;
@@ -174,6 +193,31 @@ export const ARC: ChainAddresses = {
  * Capital can only leave Boba through the canonical bridge, which takes about seven days. That
  * is a treasury operation rather than anything an LP does from this interface.
  */
+/**
+ * Ethereum.
+ *
+ * A settlement vault and nothing else: no factory, no router, no share bridge. It is here because
+ * it is where the payout provider settles, which makes it the one chain where a supplier payment
+ * needs nothing in between.
+ */
+export const ETHEREUM: ChainAddresses = {
+  chainId: mainnet.id,
+  chainName: "Ethereum",
+  short: "ethereum",
+  factory: undefined,
+  router: undefined,
+  usdc: env(process.env.NEXT_PUBLIC_ETHEREUM_USDC_ADDRESS) ?? ETHEREUM_USDC,
+  sharesEscrow: undefined,
+  settlementVault:
+    env(process.env.NEXT_PUBLIC_ETHEREUM_SETTLEMENT_VAULT_ADDRESS) ?? ETHEREUM_SETTLEMENT_VAULT,
+  whitelistedSettlementVault: undefined,
+  composer: undefined,
+  // Public endpoints are rate limited; a deployment serving real users should set its own.
+  rpc: s(process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL) || "https://eth.drpc.org",
+  explorer: "https://etherscan.io",
+  isTestnet: false,
+};
+
 export const BOBA: ChainAddresses = {
   chainId: boba.id,
   chainName: "Boba",
@@ -212,10 +256,11 @@ export const BOBA_SEPOLIA: ChainAddresses = {
 export const DEFAULT_CHAIN = MAINNET;
 
 export const HOME_CHAIN_IDS: readonly number[] = [
-  base.id, baseSepolia.id, arcTestnet.id, boba.id, bobaSepolia.id,
+  mainnet.id, base.id, baseSepolia.id, arcTestnet.id, boba.id, bobaSepolia.id,
 ];
 
 export function homeChainFor(chainId: number): ChainAddresses | undefined {
+  if (chainId === mainnet.id) return ETHEREUM;
   if (chainId === base.id) return MAINNET;
   if (chainId === baseSepolia.id) return SEPOLIA;
   if (chainId === arcTestnet.id) return ARC;

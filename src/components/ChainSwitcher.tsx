@@ -13,6 +13,9 @@ const CHAINS = [
   // Hosts the settlement vault and nothing else, and is not a bridge source: Arc is
   // outside LayerZero's mesh, so an LP deposits there directly or not at all.
   { id: arcTestnet.id, name: "Arc Testnet", testnet: true, source: false },
+  // The chain the payout provider settles on, and therefore the only one where a supplier
+  // payment needs nothing in between. A settlement vault and nothing else.
+  { id: 1, name: "Ethereum", testnet: false, source: false },
   // Same shape as Arc: a settlement vault, and outside LayerZero's mesh, so shares cannot
   // bridge in or out. Capital itself leaves through Boba's canonical bridge, which is a
   // treasury operation and takes about seven days, not something an LP does from here.
