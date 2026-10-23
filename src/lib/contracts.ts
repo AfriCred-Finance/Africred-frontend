@@ -1,7 +1,7 @@
 "use client";
 
 import { useChainId } from "wagmi";
-import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet, mainnet } from "wagmi/chains";
+import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet, mainnet, polygon } from "wagmi/chains";
 import type { Address } from "viem";
 
 const s = (v: string | undefined) => v?.trim() ?? "";
@@ -79,6 +79,21 @@ const MAINNET_SETTLEMENT_VAULT = "0xE9F4e7B601700DA7BCb6f27Fd1dc873ffdAFB060" as
 const ETHEREUM_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as Address;
 
 /**
+ * Native USDC on Polygon, Circle's own. NOT USDC.e (0x2791Bca1...), which is the older bridged
+ * token and a different balance entirely: a vault holding one cannot pay out the other.
+ */
+const POLYGON_USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as Address;
+
+/**
+ * The Polygon vault.
+ *
+ * It shares this address with the Boba vault and the Arc testnet one, because the deployer's
+ * nonce lined up three times. Same bytecode, three separate deployments, three separate
+ * balances. The address alone does not identify a vault; only the pair with a chain id does.
+ */
+const POLYGON_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
+
+/**
  * The settlement vault on Ethereum.
  *
  * The only one of our vaults that sits on the chain the payout provider actually settles on, so
@@ -98,6 +113,7 @@ export type SupportedChainId =
   | typeof base.id
   | typeof baseSepolia.id
   | typeof arcTestnet.id
+  | typeof polygon.id
   | typeof boba.id
   | typeof bobaSepolia.id;
 
@@ -108,8 +124,8 @@ export type ConfiguredChainId = SupportedChainId | typeof bsc.id | typeof bscTes
 
 export interface ChainAddresses {
   chainId: SupportedChainId;
-  chainName: "Ethereum" | "Base" | "Base Sepolia" | "Arc Testnet" | "Boba" | "Boba Sepolia";
-  short: "ethereum" | "base" | "sepolia" | "arc" | "boba" | "boba-sepolia";
+  chainName: "Ethereum" | "Base" | "Polygon" | "Base Sepolia" | "Arc Testnet" | "Boba" | "Boba Sepolia";
+  short: "ethereum" | "base" | "polygon" | "sepolia" | "arc" | "boba" | "boba-sepolia";
   factory: Address | undefined;
   router: Address | undefined;
   usdc: Address;
@@ -228,6 +244,25 @@ export const ETHEREUM: ChainAddresses = {
   isTestnet: false,
 };
 
+export const POLYGON: ChainAddresses = {
+  chainId: polygon.id,
+  chainName: "Polygon",
+  short: "polygon",
+  factory: undefined,
+  router: undefined,
+  usdc: env(process.env.NEXT_PUBLIC_POLYGON_USDC_ADDRESS) ?? POLYGON_USDC,
+  sharesEscrow: undefined,
+  settlementVault:
+    env(process.env.NEXT_PUBLIC_POLYGON_SETTLEMENT_VAULT_ADDRESS) ?? POLYGON_SETTLEMENT_VAULT,
+  whitelistedSettlementVault: undefined,
+  composer: undefined,
+  // Public endpoints are rate limited; a deployment serving real users should set its own.
+  // polygon-rpc.com is deliberately not the default: it answers 401 on an unkeyed request.
+  rpc: s(process.env.NEXT_PUBLIC_POLYGON_RPC_URL) || "https://polygon.drpc.org",
+  explorer: "https://polygonscan.com",
+  isTestnet: false,
+};
+
 export const BOBA: ChainAddresses = {
   chainId: boba.id,
   chainName: "Boba",
@@ -266,12 +301,13 @@ export const BOBA_SEPOLIA: ChainAddresses = {
 export const DEFAULT_CHAIN = MAINNET;
 
 export const HOME_CHAIN_IDS: readonly number[] = [
-  mainnet.id, base.id, baseSepolia.id, arcTestnet.id, boba.id, bobaSepolia.id,
+  mainnet.id, base.id, polygon.id, baseSepolia.id, arcTestnet.id, boba.id, bobaSepolia.id,
 ];
 
 export function homeChainFor(chainId: number): ChainAddresses | undefined {
   if (chainId === mainnet.id) return ETHEREUM;
   if (chainId === base.id) return MAINNET;
+  if (chainId === polygon.id) return POLYGON;
   if (chainId === baseSepolia.id) return SEPOLIA;
   if (chainId === arcTestnet.id) return ARC;
   if (chainId === boba.id) return BOBA;

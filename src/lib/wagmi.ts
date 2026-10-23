@@ -1,5 +1,5 @@
 import { http, createConfig } from "wagmi";
-import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet, mainnet } from "wagmi/chains";
+import { base, baseSepolia, boba, bobaSepolia, bsc, bscTestnet, mainnet, polygon } from "wagmi/chains";
 import { defineChain } from "viem";
 import { injected } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
@@ -11,6 +11,7 @@ import {
   BOBA_SEPOLIA,
   ETHEREUM,
   MAINNET,
+  POLYGON,
   SEPOLIA,
   arcTestnet as arcDef,
 } from "./contracts";
@@ -29,11 +30,12 @@ export const wagmiConfig = createConfig({
   // Arc hosts the settlement vault and nothing else. It is a home chain rather than a
   // bridge source: an LP deposits into the vault there directly, and there is no bridge to
   // reach it with, since Arc is outside LayerZero's mesh.
-  chains: [mainnet, base, baseSepolia, arc, boba, bobaSepolia, bsc, bscTestnet],
+  chains: [mainnet, base, polygon, baseSepolia, arc, boba, bobaSepolia, bsc, bscTestnet],
   connectors: [farcasterMiniApp(), injected()],
   transports: {
     [mainnet.id]: http(ETHEREUM.rpc),
     [base.id]: http(MAINNET.rpc),
+    [polygon.id]: http(POLYGON.rpc),
     [baseSepolia.id]: http(SEPOLIA.rpc),
     [arc.id]: http(ARC.rpc),
     [boba.id]: http(BOBA.rpc),

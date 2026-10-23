@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { base, baseSepolia, bsc, bscTestnet } from "wagmi/chains";
+import { base, baseSepolia, bsc, bscTestnet, polygon } from "wagmi/chains";
 import { arcTestnet } from "@/lib/contracts";
 
 // BNB entries are deposit *sources*, not places vaults live. They are grouped apart in
@@ -16,6 +16,10 @@ const CHAINS = [
   // The chain the payout provider settles on, and therefore the only one where a supplier
   // payment needs nothing in between. A settlement vault and nothing else.
   { id: 1, name: "Ethereum", testnet: false, source: false },
+  // Where the CCTP router can settle without a bridge, since Circle mints USDC natively on
+  // both ends. The vault here shares its address with the Boba and Arc ones, so read the
+  // chain beside it before trusting a copied address.
+  { id: polygon.id, name: "Polygon", testnet: false, source: false },
   // Same shape as Arc: a settlement vault, and outside LayerZero's mesh, so shares cannot
   // bridge in or out. Capital itself leaves through Boba's canonical bridge, which is a
   // treasury operation and takes about seven days, not something an LP does from here.

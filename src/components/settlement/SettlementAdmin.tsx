@@ -184,6 +184,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const EXPLORERS: Record<number, string> = {
   1: "https://etherscan.io",
   8453: "https://basescan.org",
+  137: "https://polygonscan.com",
   84532: "https://sepolia.basescan.org",
   5042002: "https://testnet.arcscan.app",
   288: "https://bobascan.com",
@@ -200,6 +201,7 @@ const EXPLORERS: Record<number, string> = {
 const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
   8453: "Base",
+  137: "Polygon",
   84532: "Base Sepolia",
   5042002: "Arc Testnet",
   288: "Boba",
