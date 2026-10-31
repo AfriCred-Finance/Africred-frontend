@@ -415,16 +415,20 @@ function AttestForm({ deposit, onDone }: { deposit: PlatformDeposit; onDone: () 
 
       setBusy("Waiting for the wallet");
       // Cast wholesale: the typed-data shape is decided by the API at runtime, so the
-      // compiler cannot narrow it here. What guarantees correctness is that the vault
-      // verifies the same digest, and a mismatch is caught there rather than by types.
+      // compiler cannot narrow it here.
+      //
+      // This signs a DepositAttestation, which records that the money landed and authorises no
+      // capital. It used to sign the vault's DrawApproval, and that signature travelled
+      // unchanged to the chain so a pre-funded merchant could pay with nobody in the loop. It
+      // could only work because the struct named a ceiling rather than a payment.
       const signature = await signTypedDataAsync({
         domain: payload.domain,
         types: payload.types,
         primaryType: payload.primaryType,
         // The API serialises uint256 as decimal strings; viem hashes numbers, not strings.
         message: {
-          approvalRef: payload.message.approvalRef as Hex,
-          maxAmount: BigInt(payload.message.maxAmount),
+          depositRef: payload.message.depositRef as Hex,
+          usdcEquivalent: BigInt(payload.message.usdcEquivalent),
           deadline: BigInt(payload.message.deadline),
         },
       } as unknown as Parameters<typeof signTypedDataAsync>[0]);

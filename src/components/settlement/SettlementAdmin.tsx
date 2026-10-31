@@ -677,6 +677,10 @@ function Field({
 // --------------------------------------------------------------------- order detail
 
 function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: () => void; chainId?: number }) {
+  // The approver signs here now, not when the deposit was confirmed, so this screen needs a
+  // wallet. The address it signs with must be one the vault recognises as an approver.
+  const { address } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
   const [data, setData] = useState<{
     intake: Order;
     payout: Payout | null;
@@ -784,14 +788,16 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
   /**
    * Whether this payment can fit through the chosen route.
    *
-   * Compared against the ceiling the APPROVER attested, which is the upper bound on what the vault
-   * can be asked to release for this order. The exact USDC figure is not known until the provider
-   * quotes, inside execute, so the attested ceiling is the honest thing to check here: if even the
-   * bound fits, nothing the provider quotes can overflow the route.
+   * Compared against what the provider has actually quoted, once there is one. There is no
+   * attested ceiling to check against any more: the approver signs the exact figure at payment
+   * time rather than an upper bound days earlier, so until the provider quotes there is simply
+   * no number to compare, and the route's own refusal inside execute is the real control.
    */
   const routeCeiling = capacity?.max === null || capacity?.max === undefined ? null : BigInt(capacity.max);
-  const attested = data?.intake.maxAmount ? BigInt(data.intake.maxAmount) : null;
-  const overCeiling = needsBridge && routeCeiling !== null && attested !== null && attested > routeCeiling;
+  const quoted = data?.payout?.fromAmount
+    ? BigInt(Math.round(Number(data.payout.fromAmount) * 1e6))
+    : null;
+  const overCeiling = needsBridge && routeCeiling !== null && quoted !== null && quoted > routeCeiling;
 
   if (error) return <div className="card border-red-500/30 p-4 text-sm text-red-700">{error}</div>;
   if (!data) return <div className="card p-6 text-sm text-muted">Loading...</div>;
@@ -799,23 +805,70 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
   const { intake, payout, settlement } = data;
   const phase = phaseOf({ ...intake, payout });
 
-  async function execute() {
+  /**
+   * Run the payment, pausing once to be signed.
+   *
+   * The backend stops after the payout provider has given its address and its figure, and
+   * hands back exactly what to sign: this order, that address, that amount. The approver's
+   * wallet opens showing those three, and execution resumes with the signature.
+   *
+   * The pause is the control rather than a limitation of the plumbing. An attestation used to
+   * be signed when the client's money landed, days earlier, and could only name a ceiling,
+   * because nobody knew yet where the payment would go or what it would cost.
+   */
+  async function execute(signed?: { approver: string; deadline: number; signature: string }) {
     setBusy("execute");
-    setSteps(null);
+    if (!signed) setSteps(null);
     try {
-      const res = await api<{ ok: boolean; steps: Step[] }>(
-        `orders/${encodeURIComponent(orderId)}/execute`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            supplierAccountId: intake.supplierAccountId,
-            provider,
-            // Sent only when one is needed. An empty string would be read as a named route that
-            // does not exist, and the order would be refused for the wrong reason.
-            ...(needsBridge && route ? { bridgeRoute: route } : {}),
-          }),
-        },
-      );
+      const res = await api<{
+        ok: boolean;
+        steps: Step[];
+        pending?: string;
+        sign?: {
+          domain: Record<string, unknown>;
+          types: Record<string, unknown>;
+          primaryType: string;
+          message: { orderRef: string; dest: string; amount: string; deadline: string };
+        };
+      }>(`orders/${encodeURIComponent(orderId)}/execute`, {
+        method: "POST",
+        body: JSON.stringify({
+          supplierAccountId: intake.supplierAccountId,
+          provider,
+          // Sent only when one is needed. An empty string would be read as a named route that
+          // does not exist, and the order would be refused for the wrong reason.
+          ...(needsBridge && route ? { bridgeRoute: route } : {}),
+          ...(signed ?? {}),
+        }),
+      });
+
+      if (res.pending === "attestation" && res.sign) {
+        if (!address) throw new Error("Connect the approver's wallet to authorise this payment.");
+        setSteps(res.steps);
+        setBusy("signing");
+
+        // Cast wholesale: the shape is decided by the backend at runtime. Correctness comes
+        // from the vault rebuilding the same digest, not from these types.
+        const signature = await signTypedDataAsync({
+          domain: res.sign.domain,
+          types: res.sign.types,
+          primaryType: res.sign.primaryType,
+          message: {
+            orderRef: res.sign.message.orderRef,
+            dest: res.sign.message.dest,
+            amount: BigInt(res.sign.message.amount),
+            deadline: BigInt(res.sign.message.deadline),
+          },
+        } as unknown as Parameters<typeof signTypedDataAsync>[0]);
+
+        // Straight back in, carrying the signature. The backend picks up from the same state.
+        return execute({
+          approver: address,
+          deadline: Number(res.sign.message.deadline),
+          signature,
+        });
+      }
+
       setSteps(res.steps);
       await load();
     } catch (e) {
@@ -856,9 +909,9 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
           <div>
             <h3 className="font-medium">Execute payment</h3>
             <p className="mt-1 text-sm text-ink2">
-              Funds attested by {intake.approver} up to {usd(intake.maxAmount)}. The vault
-              sends USDC to the provider, which pays the supplier in{" "}
-              {intake.toCurrency}.
+              Funds confirmed by {intake.approver ?? "nobody yet"}. The vault sends USDC to the
+              provider, which pays the supplier in {intake.toCurrency}. An approver signs the
+              exact figure and the exact address when you press Execute, not before.
             </p>
           </div>
 
@@ -1002,7 +1055,7 @@ function OrderDetail({ orderId, onBack, chainId }: { orderId: string; onBack: ()
           <button
             type="button"
             className="btn btn-primary"
-            onClick={execute}
+            onClick={() => execute()}
             // A bridged payment with no path chosen would be refused at quote time. Refusing to
             // start it is the same answer, given before anything is created.
             // Blocked on the ceiling too. The backend refuses independently, which is what makes
@@ -1084,7 +1137,6 @@ function ConfirmFunds({ intake, onDone }: { intake: Order; onDone: () => void })
   const { signTypedDataAsync } = useSignTypedData();
   const [fiatReceived, setFiatReceived] = useState(intake.fiatExpected);
   const [bankReference, setBankReference] = useState("");
-  const [ceiling, setCeiling] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1096,42 +1148,23 @@ function ConfirmFunds({ intake, onDone }: { intake: Order; onDone: () => void })
     setBusy(true);
     setError(null);
     try {
-      const maxAmount = (BigInt(Math.round(Number(ceiling) * 1e6)) * 1n).toString();
-      if (BigInt(maxAmount) <= 0n) throw new Error("Authorised ceiling must be above zero.");
-
-      // The payload is served by the backend rather than rebuilt here, so the EIP-712
-      // domain cannot drift from the deployed contract. A mismatch would verify in the
-      // browser and revert on-chain, which surfaces only at payment time.
-      const payload = await api<{
-        domain: Record<string, unknown>;
-        types: Record<string, unknown>;
-        primaryType: string;
-        message: { orderRef: string; maxAmount: string; deadline: string };
-      }>(`orders/${encodeURIComponent(intake.orderId)}/approval?maxAmount=${maxAmount}`);
-
-      // Cast wholesale: the typed-data shape is decided by the backend at runtime, so the
-      // compiler cannot narrow it here. What guarantees correctness is that the vault
-      // verifies the same digest, and a mismatch is caught there rather than by types.
-      const signature = await signTypedDataAsync({
-        domain: payload.domain,
-        types: payload.types,
-        primaryType: payload.primaryType,
-        message: {
-          orderRef: payload.message.orderRef,
-          maxAmount: BigInt(payload.message.maxAmount),
-          deadline: BigInt(payload.message.deadline),
-        },
-      } as unknown as Parameters<typeof signTypedDataAsync>[0]);
-
+      /**
+       * No signature here any more, and no ceiling to set.
+       *
+       * This step used to sign the vault's DrawApproval over a ceiling, and that signature was
+       * what later authorised the payment. A ceiling was all it could name, because at this
+       * point nobody knows the payout provider's address or its figure.
+       *
+       * Those are now inside the signature, so authorising happens when the payment is known:
+       * Execute stops once, shows the address and the amount, and asks for a signature over
+       * exactly those. What is recorded here is the human assertion that the money landed.
+       */
       await api(`orders/${encodeURIComponent(intake.orderId)}/confirm`, {
         method: "POST",
         body: JSON.stringify({
           fiatReceived,
           bankReference,
-          approver: address,
-          maxAmount: payload.message.maxAmount,
-          deadline: payload.message.deadline,
-          signature,
+          confirmedBy: address ?? "platform",
         }),
       });
       onDone();
@@ -1162,16 +1195,14 @@ function ConfirmFunds({ intake, onDone }: { intake: Order; onDone: () => void })
           value={bankReference}
           onChange={(e) => setBankReference(e.target.value)}
         />
-        <Field
-          label="Authorised ceiling (USDC)"
-          value={ceiling}
-          onChange={(e) => setCeiling(e.target.value)}
-          hint="upper bound; the exact amount is set by the provider quote"
-        />
       </div>
+      <p className="text-sm text-muted">
+        No ceiling to set here any more. The approver signs the exact amount and the exact
+        destination at payment time, which is the first moment either is known.
+      </p>
       {error && <div className="text-sm text-red-700">{error}</div>}
       <button type="button" className="btn btn-primary" onClick={confirm} disabled={busy}>
-        {busy ? "Waiting for signature..." : "Sign and confirm"}
+        {busy ? "Recording..." : "Confirm funds received"}
       </button>
     </div>
   );
