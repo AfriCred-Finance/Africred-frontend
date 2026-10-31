@@ -59,7 +59,7 @@ const BOBA_USDC = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc" as Address;
  * this, because the EIP-712 domain carries the chain id, so an attestation signed for the Arc
  * vault is rejected by this one; a human reading a bare address is the thing at risk.
  */
-const BOBA_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
+const BOBA_SETTLEMENT_VAULT = "0x6AFb6c94b027c14c00A01cfb370b7Cd65B2354B3" as Address;
 
 /**
  * The Base vault. MAINNET means Base in this file, not Ethereum: it predates there being a
@@ -71,7 +71,7 @@ const BOBA_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Ad
  * pointed at it has no signed-approval step and no role separation, whatever the contract
  * source in af-contracts says.
  */
-const MAINNET_SETTLEMENT_VAULT = "0xE9F4e7B601700DA7BCb6f27Fd1dc873ffdAFB060" as Address;
+const MAINNET_SETTLEMENT_VAULT = "0x63D811F569EdF059e546F1458bB98E1B152C1ab3" as Address;
 
 /**
  * USDC on Ethereum. Circle's own, the one the payout provider's deposit symbol means.
@@ -87,11 +87,14 @@ const POLYGON_USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as Address;
 /**
  * The Polygon vault.
  *
- * It shares this address with the Boba vault and the Arc testnet one, because the deployer's
- * nonce lined up three times. Same bytecode, three separate deployments, three separate
- * balances. The address alone does not identify a vault; only the pair with a chain id does.
+ * Redeployed 31 October 2026, with the previous one at 0xAF11dAe4 left in place and unused.
+ *
+ * Note the address: it is also the Ethereum vault's PREVIOUS address. The deployer's nonce
+ * lines up across chains more often than feels reasonable, so an address copied out of an
+ * older note can be a real contract on the wrong chain rather than a dead end. Always carry
+ * the chain id beside it.
  */
-const POLYGON_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as Address;
+const POLYGON_SETTLEMENT_VAULT = "0x33E6355630F753824f2275a418671595b0469283" as Address;
 
 /**
  * The settlement vault on Ethereum.
@@ -104,7 +107,7 @@ const POLYGON_SETTLEMENT_VAULT = "0xAF11dAe4Cdc0303B9D3EF311b4Bcd4C273E0101c" as
  * Note the naming in this file: `MAINNET` means BASE mainnet, for historical reasons, so Ethereum
  * gets its own name rather than inheriting a label that already means something else.
  */
-const ETHEREUM_SETTLEMENT_VAULT = "0x33E6355630F753824f2275a418671595b0469283" as Address;
+const ETHEREUM_SETTLEMENT_VAULT = "0xbdEA8E819C8166997516a8dE89Abf65A8F76299E" as Address;
 const MAINNET_WHITELISTED_SETTLEMENT_VAULT = "0x487FAB1f2EB45a3beAa64c671F48C0961d4952Cf" as Address;
 
 /// Chains that host vaults.
